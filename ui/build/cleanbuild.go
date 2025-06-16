@@ -58,11 +58,33 @@ const (
 	FILEMODE_USER_EXECUTE = FILEMODE_EXECUTE << FILEMODE_USER_SHIFT
 )
 
-// Remove everything under the out directory. Don't remove the out directory
-// itself in case it's a symlink.
 func clean(ctx Context, config Config) {
-	removeGlobs(ctx, filepath.Join(config.OutDir(), "*"))
-	ctx.Println("Entire build directory removed.")
+    outDir := config.OutDir()
+    
+    // Delete everything in outDir EXCEPT the "soong" directory
+    if entries, err := os.ReadDir(outDir); err == nil {
+        for _, entry := range entries {
+            if entry.Name() != "soong" {  // Skip the "soong" directory
+                path := filepath.Join(outDir, entry.Name())
+                if err := os.RemoveAll(path); err != nil {
+                    ctx.Printf("Failed to remove %s: %v\n", path, err)
+                }
+            }
+        }
+    }
+    
+    // Delete contents of "soong" but preserve the directory itself
+    soongDir := filepath.Join(outDir, "soong")
+    if entries, err := os.ReadDir(soongDir); err == nil {
+        for _, entry := range entries {
+            path := filepath.Join(soongDir, entry.Name())
+            if err := os.RemoveAll(path); err != nil {
+                ctx.Printf("Failed to remove %s: %v\n", path, err)
+            }
+        }
+    }
+    
+    ctx.Println("Build directory cleaned (soong directory preserved).")
 }
 
 // Remove everything in the data directory.
