@@ -128,6 +128,27 @@ func installClean(ctx Context, config Config) {
 		return filepath.Join(productOutPath, path)
 	}
 
+	removeGlobs(ctx,
+    filepath.Join(config.OutDir(), "*.log"),
+    filepath.Join(config.OutDir(), "*.trace"),
+    filepath.Join(config.OutDir(), "build_metrics.json"),
+    filepath.Join(config.OutDir(), "ninja_log*"))
+
+	removeGlobs(ctx,
+    // Comprehensive pattern coverage
+    filepath.Join(config.OutDir(), "*.log*"),          // All log files and rotations
+    filepath.Join(config.OutDir(), "*.trace*"),        // All trace files
+    filepath.Join(config.OutDir(), "*.gz"),            // All gzipped files
+    filepath.Join(config.OutDir(), "build_metrics*"),  // Build metrics
+    filepath.Join(config.OutDir(), "ninja_log*"),      // Ninja logs
+    filepath.Join(config.OutDir(), "dumpvars*"),       // All dumpvars outputs
+    
+    // Specific verbose/error logs (redundant but explicit)
+    filepath.Join(config.OutDir(), "verbose.log*"),
+    filepath.Join(config.OutDir(), "error.log*"))
+
+ctx.Println("Removed all build logs and trace files")
+
 	removeGlobs(ctx, filepath.Join(config.OutDir(), "soong", "*.glob*"))
 
 	// Host bin, frameworks, and lib* are intentionally omitted, since
