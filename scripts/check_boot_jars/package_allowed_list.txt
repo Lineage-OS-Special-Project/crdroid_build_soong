@@ -276,6 +276,9 @@ org\.lineageos\.platform\.internal
 # LMODroid adds
 com\.libremobileos\..*
 
+# LOSP adds
+org.losp.*
+
 # MTK adds
 com\.mediatek
 com\.mediatek\..*
