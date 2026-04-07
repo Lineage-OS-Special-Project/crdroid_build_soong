@@ -807,21 +807,22 @@ func metalavaCmd(ctx android.ModuleContext, rule *android.RuleBuilder, srcs andr
 		})
 	}
 
-	cmd.BuiltTool("metalava").ImplicitTool(ctx.Config().HostJavaToolPath(ctx, "metalava.jar")).
-		Flag(config.JavacVmFlags).
-		Flag(config.MetalavaAddOpens).
-		Flag("-J-Xmx6114m").
-		FlagWithArg("--java-source ", params.javaVersion.String()).
-		FlagWithRspFileInputList("@", android.PathForModuleOut(ctx, fmt.Sprintf("%s.metalava.rsp", params.stubsType.String())), srcs).
-		FlagWithInput("@", srcJarList)
+	cmd.BuiltTool("metalava").
+	ImplicitTool(ctx.Config().HostJavaToolPath(ctx, "metalava.jar")).
+	// Increase heap size for 32+ GB RAM systems
+	Flag(config.JavacVmFlags).
+	Flag(config.MetalavaAddOpens).
+	Flag("-J-Xmx12288m"). // 12 GB heap for metalava JVM
+	FlagWithArg("--java-source ", params.javaVersion.String()).
+	FlagWithRspFileInputList("@", android.PathForModuleOut(ctx, fmt.Sprintf("%s.metalava.rsp", params.stubsType.String())), srcs).
+	FlagWithInput("@", srcJarList)
 
-	// Metalava does not differentiate between bootclasspath and classpath and has not done so for
-	// years, so it is unlikely to change any time soon.
-	combinedPaths := append(([]android.Path)(nil), params.deps.bootClasspath.Paths()...)
-	combinedPaths = append(combinedPaths, params.deps.classpath.Paths()...)
-	if len(combinedPaths) > 0 {
-		cmd.FlagWithInputList("--classpath ", combinedPaths, ":")
-	}
+// Metalava bootclasspath + classpath combined (unchanged)
+combinedPaths := append(([]android.Path)(nil), params.deps.bootClasspath.Paths()...)
+combinedPaths = append(combinedPaths, params.deps.classpath.Paths()...)
+if len(combinedPaths) > 0 {
+	cmd.FlagWithInputList("--classpath ", combinedPaths, ":")
+}
 
 	cmd.Flag(config.MetalavaFlags)
 
