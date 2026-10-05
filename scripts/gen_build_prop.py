@@ -28,6 +28,8 @@ TEST_KEY_DIR = "build/make/target/product/security"
 def get_build_variant(product_config):
   if product_config["Eng"]:
     return "eng"
+  elif product_config["Debuggable"]:
+    return "userdebug"
   else:
     return "user"
 
@@ -38,7 +40,12 @@ def get_build_flavor(product_config):
   return build_flavor
 
 def get_build_keys(product_config):
-  return "release-keys"
+  default_cert = product_config.get("DefaultAppCertificate", "")
+  if default_cert == "" or default_cert == os.path.join(TEST_KEY_DIR, "testKey"):
+    return "test-keys"
+  if default_cert.startswith("vendor/lineage-priv/"):
+    return "release-keys"
+  return "dev-keys"
 
 def override_config(config):
   if "PRODUCT_BUILD_PROP_OVERRIDES" in config:
