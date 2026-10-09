@@ -1,0 +1,100 @@
+0133968de (HEAD -> 16.0, origin/HEAD, origin/16.0, recovery-before-force-push) refs/remotes/origin/16.0@{Mon Oct 5 12:41:30 2026}: update by push
+0133968de (HEAD -> 16.0, origin/HEAD, origin/16.0, recovery-before-force-push) refs/heads/16.0@{Mon Oct 5 12:41:06 2026}: reset: moving to recovery-before-force-push
+0133968de (HEAD -> 16.0, origin/HEAD, origin/16.0, recovery-before-force-push) HEAD@{Mon Oct 5 12:41:06 2026}: reset: moving to recovery-before-force-push
+16eeee1b7 HEAD@{Mon Oct 5 12:41:05 2026}: checkout: moving from 16.0 to 16.0
+0133968de (HEAD -> 16.0, origin/HEAD, origin/16.0, recovery-before-force-push) refs/heads/recovery-before-force-push@{Mon Oct 5 12:38:57 2026}: branch: Created from 0133968de
+16eeee1b7 refs/remotes/origin/16.0@{Mon Oct 5 12:36:23 2026}: update by push
+16eeee1b7 refs/heads/16.0@{Mon Oct 5 12:36:15 2026}: reset: moving to 16eeee1b7f229a6ca86f6c59ed8029f0f5c19309
+16eeee1b7 HEAD@{Mon Oct 5 12:36:15 2026}: reset: moving to 16eeee1b7f229a6ca86f6c59ed8029f0f5c19309
+0133968de (HEAD -> 16.0, origin/HEAD, origin/16.0, recovery-before-force-push) refs/remotes/origin/16.0@{Mon Oct 5 12:28:57 2026}: update by push
+0133968de (HEAD -> 16.0, origin/HEAD, origin/16.0, recovery-before-force-push) refs/heads/16.0@{Mon Oct 5 12:28:48 2026}: commit (amend): soong: restore userdebug build properties
+0133968de (HEAD -> 16.0, origin/HEAD, origin/16.0, recovery-before-force-push) HEAD@{Mon Oct 5 12:28:48 2026}: commit (amend): soong: restore userdebug build properties
+d21458563 refs/remotes/origin/16.0@{Mon Oct 5 12:18:44 2026}: update by push
+d21458563 refs/heads/16.0@{Mon Oct 5 12:18:35 2026}: revert: Revert "soong: Turn off debug props on userdebug builds"
+d21458563 HEAD@{Mon Oct 5 12:18:35 2026}: revert: Revert "soong: Turn off debug props on userdebug builds"
+aae2e0d3c refs/heads/16.0@{Mon Oct 5 12:17:54 2026}: pull: Fast-forward
+aae2e0d3c refs/remotes/origin/16.0@{Mon Oct 5 12:17:54 2026}: pull: fast-forward
+510356cb8 (origin/16.0-microg) refs/remotes/origin/16.0-microg@{Mon Oct 5 12:17:54 2026}: pull: storing head
+6cf841666 (origin/17.0) refs/remotes/origin/17.0@{Mon Oct 5 12:17:54 2026}: pull: storing head
+aae2e0d3c HEAD@{Mon Oct 5 12:17:54 2026}: pull: Fast-forward
+9d5a4550e (calyx/android16-qpr2, calyx/HEAD) refs/remotes/calyx/HEAD@{Fri Jul 10 18:28:02 2026}: fetch
+ac9704d19 (tag: Q.2020.12.17.20, tag: Q.2020.12.16.17, tag: 2020.11.04.17, tag: 2020.09.22.12, tag: 2020.08.04.12, tag: 2020.07.07.18, tag: 2020.07.07.12, tag: 2020.06.03.12, calyx/backup/android10-20200803, calyx/backup/android10-20200706, calyx/android10) refs/remotes/calyx/android10@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+0a5aa52d6 (calyx/android11) refs/remotes/calyx/android11@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+21d542861 (tag: 2.9.0, tag: 2.8.3, tag: 2.8.2, tag: 2.8.1, tag: 2.8.0, tag: 2.7.1, tag: 2.7.0, tag: 2.6.1, tag: 2.6.0, tag: 2.14.0, tag: 2.13.0, tag: 2.11.0, tag: 2.10.0, calyx/android11-qpr1) refs/remotes/calyx/android11-qpr1@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+faf5e949a (calyx/android12) refs/remotes/calyx/android12@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+68b69fca5 (tag: 3.9.0, tag: 3.8.0-2, tag: 3.8.0, tag: 3.7.3, tag: 3.7.2, tag: 3.7.1, tag: 3.7.0, tag: 3.6.0-2, tag: 3.6.0, calyx/android12L) refs/remotes/calyx/android12L@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+2045acd3b (tag: 4.18.0, tag: 4.17.0, tag: 4.16.0, tag: 4.15.1, tag: 4.15.0, tag: 4.14.2, tag: 4.14.1, tag: 4.14.0, tag: 4.13.4, calyx/android13) refs/remotes/calyx/android13@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+a56909360 (tag: 5.9.0, tag: 5.8.2, tag: 5.8.1, tag: 5.8.0, tag: 5.17.0, tag: 5.14.1, tag: 5.14.0, tag: 5.13.0, tag: 5.12.2, tag: 5.12.1, tag: 5.12.0, tag: 5.11.3, tag: 5.11.2, tag: 5.11.1, tag: 5.11.0, tag: 5.10.3, tag: 5.10.1, tag: 5.10.0, calyx/android14) refs/remotes/calyx/android14@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+0a03f80aa (tag: 5.1.1, calyx/android14-d1) refs/remotes/calyx/android14-d1@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+7a4bc16f1 (tag: 6.8.11, tag: 6.8.10, tag: 6.10.10, calyx/android15-qpr1) refs/remotes/calyx/android15-qpr1@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+350107413 (tag: 6.8.21, tag: 6.8.20, tag: 6.7.23, tag: 6.7.22, tag: 6.10.20, calyx/android15-qpr2) refs/remotes/calyx/android15-qpr2@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+8af392c08 (calyx/android16) refs/remotes/calyx/android16@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+9d5a4550e (calyx/android16-qpr2, calyx/HEAD) refs/remotes/calyx/android16-qpr2@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+6722dd883 (calyx/android17) refs/remotes/calyx/android17@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+ac9704d19 (tag: Q.2020.12.17.20, tag: Q.2020.12.16.17, tag: 2020.11.04.17, tag: 2020.09.22.12, tag: 2020.08.04.12, tag: 2020.07.07.18, tag: 2020.07.07.12, tag: 2020.06.03.12, calyx/backup/android10-20200803, calyx/backup/android10-20200706, calyx/android10) refs/remotes/calyx/backup/android10-20200706@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+ac9704d19 (tag: Q.2020.12.17.20, tag: Q.2020.12.16.17, tag: 2020.11.04.17, tag: 2020.09.22.12, tag: 2020.08.04.12, tag: 2020.07.07.18, tag: 2020.07.07.12, tag: 2020.06.03.12, calyx/backup/android10-20200803, calyx/backup/android10-20200706, calyx/android10) refs/remotes/calyx/backup/android10-20200803@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+9361da5dc (calyx/pie-3a, calyx/pie) refs/remotes/calyx/pie@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+9361da5dc (calyx/pie-3a, calyx/pie) refs/remotes/calyx/pie-3a@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+173e68498 (calyx/pie-qpr2-release) refs/remotes/calyx/pie-qpr2-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+d901a9543 (calyx/staging/android10-d4) refs/remotes/calyx/staging/android10-d4@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+12bcb6e42 (calyx/staging/android13-rebase) refs/remotes/calyx/staging/android13-rebase@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+5f7c1ace7 (tag: 6.3.0, tag: 6.2.2, calyx/staging/android15) refs/remotes/calyx/staging/android15@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+34b89ce3d (calyx/staging/android16) refs/remotes/calyx/staging/android16@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+598b626db (calyx/staging/q) refs/remotes/calyx/staging/q@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+82f0b1be7 (calyx/staging/q-c2f2) refs/remotes/calyx/staging/q-c2f2@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+a19555eea (calyx/upstream/android12-qpr3-s1-release) refs/remotes/calyx/upstream/android12-qpr3-s1-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+3768eef62 (calyx/upstream/android13-d1-release) refs/remotes/calyx/upstream/android13-d1-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+c53c5c1fb (calyx/upstream/android13-qpr1-release) refs/remotes/calyx/upstream/android13-qpr1-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+a7e75969b (calyx/upstream/android13-qpr1-s2-release) refs/remotes/calyx/upstream/android13-qpr1-s2-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+cb3243f07 (calyx/upstream/android13-qpr2-s3-release) refs/remotes/calyx/upstream/android13-qpr2-s3-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+cef786fa7 (tag: android-13.0.0_r67, calyx/upstream/android13-qpr3-release) refs/remotes/calyx/upstream/android13-qpr3-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+b953dcc88 (tag: android-13.0.0_r1, calyx/upstream/android13-security-release) refs/remotes/calyx/upstream/android13-security-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+ee1990f1f (calyx/upstream/android14-d1-release) refs/remotes/calyx/upstream/android14-d1-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+d299e825b (calyx/upstream/android14-d2-release) refs/remotes/calyx/upstream/android14-d2-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+84317c337 (calyx/upstream/android14-release, calyx/upstream/android14-qpr1-release) refs/remotes/calyx/upstream/android14-qpr1-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+cbb3f85ce (calyx/upstream/android14-qpr2-s1-release) refs/remotes/calyx/upstream/android14-qpr2-s1-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+8bf89894c (calyx/upstream/android14-qpr3-release) refs/remotes/calyx/upstream/android14-qpr3-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+84317c337 (calyx/upstream/android14-release, calyx/upstream/android14-qpr1-release) refs/remotes/calyx/upstream/android14-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+97faf431d (calyx/upstream/android15-d4-release) refs/remotes/calyx/upstream/android15-d4-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+905305efa (calyx/upstream/android15-qpr1-release) refs/remotes/calyx/upstream/android15-qpr1-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+333d2b368 (calyx/upstream/android15-qpr2-release) refs/remotes/calyx/upstream/android15-qpr2-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+30e11513c (calyx/upstream/android15-release) refs/remotes/calyx/upstream/android15-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+533c3c2c9 (calyx/upstream/android16-release) refs/remotes/calyx/upstream/android16-release@{Fri Jul 10 18:28:02 2026}: fetch calyx: storing head
+510356cb8 (origin/16.0-microg) refs/remotes/origin/16.0@{Tue Jul 7 08:40:26 2026}: update by push
+510356cb8 (origin/16.0-microg) refs/heads/16.0@{Tue Jul 7 08:40:21 2026}: cherry-pick: clean: Remove all build logs and traces during installclean
+510356cb8 (origin/16.0-microg) HEAD@{Tue Jul 7 08:40:21 2026}: cherry-pick: clean: Remove all build logs and traces during installclean
+a544dd3ab refs/heads/16.0@{Tue Jul 7 08:40:15 2026}: cherry-pick: Preserve soong directory during clean builds
+a544dd3ab HEAD@{Tue Jul 7 08:40:15 2026}: cherry-pick: Preserve soong directory during clean builds
+6e8dfdb95 refs/heads/16.0@{Tue Jul 7 08:40:05 2026}: cherry-pick: java: Optimize Metalava configuration for high-memory systems
+6e8dfdb95 HEAD@{Tue Jul 7 08:40:05 2026}: cherry-pick: java: Optimize Metalava configuration for high-memory systems
+3cf8d2269 refs/heads/16.0@{Tue Jul 7 08:39:58 2026}: cherry-pick: java: Increase heap sizes for 32GB RAM build optimization
+3cf8d2269 HEAD@{Tue Jul 7 08:39:58 2026}: cherry-pick: java: Increase heap sizes for 32GB RAM build optimization
+6b0d4ed5a refs/heads/16.0@{Tue Jul 7 08:39:52 2026}: cherry-pick: build/soong: allow org.losp namespace on bootclasspath
+6b0d4ed5a HEAD@{Tue Jul 7 08:39:52 2026}: cherry-pick: build/soong: allow org.losp namespace on bootclasspath
+80fc1e68c refs/heads/16.0@{Tue Jul 7 08:39:46 2026}: cherry-pick: soong: Set ro.losp.device alongside ro.lineage.device
+80fc1e68c HEAD@{Tue Jul 7 08:39:46 2026}: cherry-pick: soong: Set ro.losp.device alongside ro.lineage.device
+471d5b633 refs/heads/16.0@{Tue Jul 7 08:39:39 2026}: cherry-pick: Revert "soong: Set ro.crdroid.device"
+471d5b633 HEAD@{Tue Jul 7 08:39:39 2026}: cherry-pick: Revert "soong: Set ro.crdroid.device"
+60e72d76c refs/heads/16.0@{Tue Jul 7 08:39:33 2026}: cherry-pick: Revert "soong: Change to CR_VERSION"
+60e72d76c HEAD@{Tue Jul 7 08:39:33 2026}: cherry-pick: Revert "soong: Change to CR_VERSION"
+3e1abe88a refs/heads/16.0@{Tue Jul 7 08:39:27 2026}: cherry-pick: Add ability to enable scudo-free 32-bit libc variant.
+3e1abe88a HEAD@{Tue Jul 7 08:39:27 2026}: cherry-pick: Add ability to enable scudo-free 32-bit libc variant.
+0cabbb4b4 refs/heads/16.0@{Tue Jul 7 08:39:06 2026}: reset: moving to origin/16.0
+0cabbb4b4 HEAD@{Tue Jul 7 08:39:06 2026}: reset: moving to origin/16.0
+0cabbb4b4 refs/remotes/origin/16.0@{Tue Jul 7 08:39:03 2026}: pull: forced-update
+6782aca73 (origin/16.0-bak) refs/remotes/origin/16.0-bak@{Tue Jul 7 08:39:03 2026}: pull: forced-update
+6782aca73 (origin/16.0-bak) refs/remotes/origin/16.0@{Sun Jun 28 00:05:38 2026}: update by push
+6782aca73 (origin/16.0-bak) refs/heads/16.0@{Sun Jun 28 00:05:27 2026}: reset: moving to 6782aca73186622cfeecf21a2b3e9b709da23fd7
+6782aca73 (origin/16.0-bak) HEAD@{Sun Jun 28 00:05:27 2026}: reset: moving to 6782aca73186622cfeecf21a2b3e9b709da23fd7
+48afedb8d refs/remotes/origin/16.0@{Wed Jun 17 08:49:13 2026}: update by push
+48afedb8d refs/heads/16.0@{Wed Jun 17 08:49:08 2026}: cherry-pick: always use UTC as the time zone for build dates
+e26f6f351 refs/heads/16.0@{Wed Jun 17 08:49:08 2026}: cherry-pick: use -fwrapv when signed overflow checking is off
+0e543f901 refs/heads/16.0@{Wed Jun 17 08:49:08 2026}: cherry-pick: use speed compiler filter for dexpreopt by default
+48afedb8d HEAD@{Wed Jun 17 08:49:08 2026}: cherry-pick: always use UTC as the time zone for build dates
+e26f6f351 HEAD@{Wed Jun 17 08:49:08 2026}: cherry-pick: use -fwrapv when signed overflow checking is off
+0e543f901 HEAD@{Wed Jun 17 08:49:08 2026}: cherry-pick: use speed compiler filter for dexpreopt by default
+6782aca73 (origin/16.0-bak) refs/heads/16.0@{Wed Jun 17 08:48:56 2026}: cherry-pick: clean: Remove all build logs and traces during installclean
+35970cf9d refs/heads/16.0@{Wed Jun 17 08:48:56 2026}: cherry-pick: Preserve soong directory during clean builds
+cf6df816d refs/heads/16.0@{Wed Jun 17 08:48:56 2026}: cherry-pick: java: Optimize Metalava configuration for high-memory systems
+bc6ceebe8 refs/heads/16.0@{Wed Jun 17 08:48:56 2026}: cherry-pick: java: Increase heap sizes for 32GB RAM build optimization
+df3c1b53b refs/heads/16.0@{Wed Jun 17 08:48:56 2026}: cherry-pick: build/soong: allow org.losp namespace on bootclasspath

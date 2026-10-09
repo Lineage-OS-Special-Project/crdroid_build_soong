@@ -1,0 +1,61 @@
+From 3cf8d2269b64426058354ec98ebfaf2ca006d52e Mon Sep 17 00:00:00 2001
+From: yehonatan5785 <yehonatan@mail.ru>
+Date: Thu, 5 Jun 2025 13:48:40 +0100
+Subject: [PATCH] java: Increase heap sizes for 32GB RAM build optimization
+
+- Bump Javac heap to 6144M
+- Increase ErrorProne heap to 10240M
+- Raise D8 and R8 heap to 6144M
+- Improves build performance on 32GB systems
+
+Tested on local setup to ensure stability and faster builds.
+---
+ java/config/config.go | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/java/config/config.go b/java/config/config.go
+index 2b539abd7..46683982d 100644
+--- a/java/config/config.go
++++ b/java/config/config.go
+@@ -76,18 +76,18 @@ var (
+ )
+ 
+ func init() {
+-	pctx.StaticVariable("JavacHeapSize", "4096M")
++	pctx.StaticVariable("JavacHeapSize", "6144M")
+ 	pctx.StaticVariable("JavacHeapFlags", "-J-Xmx${JavacHeapSize}")
+ 
+ 	// ErrorProne can use significantly more memory than javac alone, give it a higher heap
+ 	// size (b/221480398).
+-	pctx.StaticVariable("ErrorProneHeapSize", "8192M")
++	pctx.StaticVariable("ErrorProneHeapSize", "10240M")
+ 	pctx.StaticVariable("ErrorProneHeapFlags", "-J-Xmx${ErrorProneHeapSize}")
+ 
+ 	// D8 invocations are shorter lived, so we restrict their JIT tiering relative to R8.
+ 	// Note that the `-JXX` prefix syntax is specific to the R8/D8 invocation wrappers.
+ 	pctx.StaticVariable("D8Flags", strings.Join(append([]string{
+-		"-JXmx4096M",
++		"-JXmx6144M",
+ 		"-JXX:+TieredCompilation",
+ 		"-JXX:TieredStopAtLevel=1",
+ 		"-JDcom.android.tools.r8.emitRecordAnnotationsInDex",
+@@ -96,7 +96,7 @@ func init() {
+ 
+ 	pctx.VariableFunc("R8Flags", func(ctx android.PackageVarContext) string {
+ 		r8flags := append([]string{
+-			"-JXmx4096M",
++			"-JXmx6144M",
+ 			"-JDcom.android.tools.r8.emitRecordAnnotationsInDex",
+ 			"-JDcom.android.tools.r8.emitPermittedSubclassesAnnotationsInDex",
+ 		}, dexerJavaVmFlagsList...)
+@@ -104,7 +104,6 @@ func init() {
+ 			r8flags = append(r8flags, "-JDcom.android.tools.r8.dumpinputtodirectory="+r8DumpDir)
+ 		}
+ 		return strings.Join(r8flags, " ")
+-
+ 	})
+ 
+ 	pctx.StaticVariable("CommonJdkFlags", strings.Join([]string{
+-- 
+2.56.0
+
