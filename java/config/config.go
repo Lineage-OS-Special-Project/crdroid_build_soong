@@ -76,18 +76,18 @@ var (
 )
 
 func init() {
-	pctx.StaticVariable("JavacHeapSize", "4096M")
+	pctx.StaticVariable("JavacHeapSize", "6144M")
 	pctx.StaticVariable("JavacHeapFlags", "-J-Xmx${JavacHeapSize}")
 
 	// ErrorProne can use significantly more memory than javac alone, give it a higher heap
 	// size (b/221480398).
-	pctx.StaticVariable("ErrorProneHeapSize", "8192M")
+	pctx.StaticVariable("ErrorProneHeapSize", "10240M")
 	pctx.StaticVariable("ErrorProneHeapFlags", "-J-Xmx${ErrorProneHeapSize}")
 
 	// D8 invocations are shorter lived, so we restrict their JIT tiering relative to R8.
 	// Note that the `-JXX` prefix syntax is specific to the R8/D8 invocation wrappers.
 	pctx.StaticVariable("D8Flags", strings.Join(append([]string{
-		"-JXmx4096M",
+		"-JXmx6144M",
 		"-JXX:+TieredCompilation",
 		"-JXX:TieredStopAtLevel=1",
 		"-JDcom.android.tools.r8.emitRecordAnnotationsInDex",
@@ -96,7 +96,7 @@ func init() {
 
 	pctx.VariableFunc("R8Flags", func(ctx android.PackageVarContext) string {
 		r8flags := []string{
-			"-JXmx4096M",
+			"-JXmx6144M",
 			"-JDcom.android.tools.r8.emitRecordAnnotationsInDex",
 			"-JDcom.android.tools.r8.emitPermittedSubclassesAnnotationsInDex",
 		}

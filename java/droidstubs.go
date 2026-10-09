@@ -857,7 +857,7 @@ func metalavaCmd(ctx android.ModuleContext, rule *android.RuleBuilder, srcs andr
 		Flag(config.JavacVmFlags).
 		Flag(config.MetalavaVmFlags).
 		Flag(config.MetalavaAddOpens).
-		Flag("-J-Xmx6114m").
+		Flag("-J-Xmx12288m").
 		FlagWithArg("--java-source ", params.javaVersion.String()).
 		FlagWithRspFileInputList("@", android.PathForModuleOut(ctx, fmt.Sprintf("%s.metalava.rsp", params.stubsType.String())), srcs).
 		FlagWithInput("@", srcJarList)
