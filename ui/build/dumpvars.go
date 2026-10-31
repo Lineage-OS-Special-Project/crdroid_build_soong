@@ -211,48 +211,71 @@ var BannerVars = []string{
 
 func Banner(config Config, make_vars map[string]string) string {
 	b := &bytes.Buffer{}
+	value := func(name string) string { return strings.TrimSpace(make_vars[name]) }
+	release, _ := config.environ.Get("TARGET_RELEASE")
+	if release == "" {
+		release = value("TARGET_RELEASE")
+	}
 
-	fmt.Fprintln(b, "============================================")
-	for _, name := range BannerVars {
-		if make_vars[name] != "" {
-			fmt.Fprintf(b, "%s=%s\n", name, make_vars[name])
+	headerFields := []string{"LOSP"}
+	if version := value("PLATFORM_VERSION"); version != "" {
+		headerFields = append(headerFields, "Android "+version)
+	}
+	if buildID := value("BUILD_ID"); buildID != "" {
+		headerFields = append(headerFields, "build "+buildID)
+	}
+	fmt.Fprintln(b, strings.Join(headerFields, "  |  "))
+
+	target := value("TARGET_PRODUCT")
+	variant := value("TARGET_BUILD_VARIANT")
+	arch := value("TARGET_ARCH")
+	targetFields := make([]string, 0, 3)
+	if target != "" {
+		targetFields = append(targetFields, target)
+	}
+	if variant != "" {
+		targetFields = append(targetFields, variant)
+	}
+	if arch != "" {
+		targetFields = append(targetFields, arch)
+	}
+	if len(targetFields) > 0 {
+		fmt.Fprintf(b, "Target  %s\n", strings.Join(targetFields, "  |  "))
+	}
+
+	configFields := make([]string, 0, 3)
+	if release != "" {
+		configFields = append(configFields, release)
+	}
+	if withGMS, ok := parseResolvedBool(make_vars["WITH_GMS"]); ok {
+		if withGMS {
+			configFields = append(configFields, "GMS")
+		} else {
+			configFields = append(configFields, "Vanilla")
 		}
 	}
-
-	if use, _ := config.environ.Get("SOONG_USE_PARTIAL_COMPILE"); use == "true" {
-		if partialCompile, ok := config.environ.Get("SOONG_PARTIAL_COMPILE"); ok {
-			fmt.Fprintf(b, "SOONG_PARTIAL_COMPILE=%s\n", partialCompile)
-		}
+	if outDir := value("OUT_DIR"); outDir != "" {
+		configFields = append(configFields, "output "+outDir)
 	}
-
-	// Only show USE_RBE and USE_REWRAPPER when the user has explicitly set SOONG_NINJA
-	if config.ninjaCommand != NINJA_DEFAULT {
-		fmt.Fprintf(b, "SOONG_NINJA=%s\n", config.ninjaCommand.String())
+	if len(configFields) > 0 {
+		fmt.Fprintf(b, "Release  %s", strings.Join(configFields, "  |  "))
 	}
-	if config.UseRBE() {
-		fmt.Fprintf(b, "USE_RBE=%t\n", config.UseRBE())
-		if config.ninjaCommand == NINJA_SISO {
-			fmt.Fprintf(b, "USE_REWRAPPER=%t\n", config.UseRewrapper())
-		}
-	}
-
-	// Normally config.soongOnlyRequested already takes into account PRODUCT_SOONG_ONLY,
-	// except when doing `get_build_var report_config`, which is run during envsetup.
-	if config.skipKatiControlledByFlags {
-		fmt.Fprintf(b, "SOONG_ONLY=%t\n", config.soongOnlyRequested)
-	} else { // default for this product
-		fmt.Fprintf(b, "SOONG_ONLY=%t\n", make_vars["PRODUCT_SOONG_ONLY"] == "true")
-	}
-
-	fmt.Fprintf(b, "SOONG_INCREMENTAL_ANALYSIS=%t\n", config.incrementalBuildActions)
-
-	if len(config.partialAnalysisTargets) > 0 {
-		fmt.Fprintf(b, "SOONG_PARTIAL_ANALYSIS=%s\n", config.partialAnalysisTargets)
-	}
-
-	fmt.Fprint(b, "============================================")
 
 	return b.String()
+}
+
+// parseResolvedBool reports a boolean only for values explicitly recognized by
+// Make's boolean conventions. An unset or unrecognized value has no display
+// state, so it must not be presented as Vanilla.
+func parseResolvedBool(value string) (bool, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "y", "yes", "on", "true":
+		return true, true
+	case "0", "n", "no", "off", "false":
+		return false, true
+	default:
+		return false, false
+	}
 }
 
 func runMakeProductConfig(ctx Context, config Config) {
