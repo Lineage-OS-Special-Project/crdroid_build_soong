@@ -89,8 +89,12 @@ func clean(ctx Context, config Config) {
 
 // Remove everything in the data directory.
 func dataClean(ctx Context, config Config) {
-	removeGlobs(ctx, filepath.Join(config.ProductOut(), "data", "*"))
+	cleanData(ctx, config)
 	ctx.Println("Entire data directory removed.")
+}
+
+func cleanData(ctx Context, config Config) {
+	removeGlobs(ctx, filepath.Join(config.ProductOut(), "data", "*"))
 }
 
 // installClean deletes all of the installed files -- the intent is to remove
@@ -101,7 +105,7 @@ func dataClean(ctx Context, config Config) {
 // This is faster than a full clean, since we're not deleting the
 // intermediates.  Instead of recompiling, we can just copy the results.
 func installClean(ctx Context, config Config) {
-	dataClean(ctx, config)
+	cleanData(ctx, config)
 
 	if hostCrossOutPath := config.hostCrossOut(); hostCrossOutPath != "" {
 		hostCrossOut := func(path string) string {
@@ -146,8 +150,6 @@ func installClean(ctx Context, config Config) {
     // Specific verbose/error logs (redundant but explicit)
     filepath.Join(config.OutDir(), "verbose.log*"),
     filepath.Join(config.OutDir(), "error.log*"))
-
-ctx.Println("Removed all build logs and trace files")
 
 	removeGlobs(ctx, filepath.Join(config.OutDir(), "soong", "*.glob*"))
 
@@ -208,6 +210,8 @@ ctx.Println("Removed all build logs and trace files")
 		productOut("testcases"),
 		productOut("symbols"),
 		productOut("install"))
+
+	ctx.Println("Install clean completed: data, logs, images and staging removed.")
 }
 
 // Since products and build variants (unfortunately) shared the same
