@@ -33,7 +33,11 @@ func NewStatusOutput(w io.Writer, statusFormat string, forceSimpleOutput, quietB
 	canUseSmartFormatting := !forceSimpleOutput && isSmartTerminal(w)
 	formatter := newFormatter(canUseSmartFormatting, statusFormat, quietBuild)
 	_, noColor := os.LookupEnv("NO_COLOR")
-	formatter.phaseColorize = canUseSmartFormatting && !noColor
+	formatter.colorize = canUseSmartFormatting && !noColor
+	formatter.phaseColorize = formatter.colorize
+	if colorTerm, ok := os.LookupEnv("COLORTERM"); ok && !noColor && (colorTerm == "truecolor" || colorTerm == "24bit") {
+		formatter.trueColor = canUseSmartFormatting
+	}
 
 	if canUseSmartFormatting {
 		return NewSmartStatusOutput(w, formatter, suppressOutput)
