@@ -14,9 +14,15 @@
 
 package terminal
 
-import (
-	"testing"
-)
+import "testing"
+
+func TestIsSmartTerminalTermDumb(t *testing.T) {
+	t.Setenv("TERM", "dumb")
+
+	if isSmartTerminal(&fakeSmartTerminal{}) {
+		t.Fatal("TERM=dumb should disable smart terminal output")
+	}
+}
 
 func TestStripAnsiEscapes(t *testing.T) {
 	testcases := []struct {

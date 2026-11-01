@@ -109,7 +109,7 @@ func dumpMakeVars(ctx Context, config Config, goals, vars []string, tmpDir strin
 	tool := ctx.Status.StartTool()
 	if which == DUMPVARS_PRODUCT_CONFIG {
 		// Only print this during product config.
-		tool.Status("[Configuration] Product configuration")
+		ctx.Status.StatusPhase(status.ConfigurationPhase, "Product configuration")
 	}
 	defer tool.Finish()
 
