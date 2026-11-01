@@ -16,6 +16,7 @@ package terminal
 
 import (
 	"io"
+	"os"
 
 	"android/soong/ui/status"
 )
@@ -31,6 +32,8 @@ func NewStatusOutput(w io.Writer, statusFormat string, forceSimpleOutput, quietB
 
 	canUseSmartFormatting := !forceSimpleOutput && isSmartTerminal(w)
 	formatter := newFormatter(canUseSmartFormatting, statusFormat, quietBuild)
+	_, noColor := os.LookupEnv("NO_COLOR")
+	formatter.phaseColorize = canUseSmartFormatting && !noColor
 
 	if canUseSmartFormatting {
 		return NewSmartStatusOutput(w, formatter, suppressOutput)

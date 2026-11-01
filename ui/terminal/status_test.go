@@ -18,13 +18,84 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 
 	"android/soong/ui/status"
 )
 
+func TestPhaseStatusColorPolicy(t *testing.T) {
+	const description = "Blueprint bootstrap and graph analysis"
+
+	t.Run("smart terminal uses cyan marker only", func(t *testing.T) {
+		unsetTestEnv(t, "NO_COLOR")
+		t.Setenv("TERM", "xterm-256color")
+		smart := &fakeSmartTerminal{termWidth: 100}
+		statusOutput := NewStatusOutput(smart, "", false, false, false, false, false)
+		statusOutput.(*smartStatusOutput).PhaseStatus(status.SoongPhase, description)
+		statusOutput.Flush()
+
+		got := smart.String()
+		want := "\x1b[36m[Soong]\x1b[0m\x1b[1m " + description
+		if !strings.Contains(got, want) {
+			t.Fatalf("smart status does not contain colored phase marker %q: %q", want, got)
+		}
+		if strings.Count(got, "\x1b[36m") != 1 {
+			t.Fatalf("expected only one cyan sequence around marker, got %q", got)
+		}
+		if plain := string(stripAnsiEscapes([]byte(got))); !strings.Contains(plain, "[Soong] "+description) {
+			t.Fatalf("plain rendering = %q", plain)
+		}
+	})
+
+	t.Run("NO_COLOR disables phase color", func(t *testing.T) {
+		t.Setenv("NO_COLOR", "1")
+		t.Setenv("TERM", "xterm-256color")
+		smart := &fakeSmartTerminal{termWidth: 100}
+		statusOutput := NewStatusOutput(smart, "", false, false, false, false, false)
+		statusOutput.(*smartStatusOutput).PhaseStatus(status.KatiPhase, "Makefile and packaging generation")
+		statusOutput.Flush()
+
+		got := smart.String()
+		if strings.Contains(got, "\x1b[36m") {
+			t.Fatalf("NO_COLOR output has cyan color sequence: %q", got)
+		}
+		if plain := string(stripAnsiEscapes([]byte(got))); !strings.Contains(plain, "[Kati] Makefile and packaging generation") {
+			t.Fatalf("plain rendering = %q", plain)
+		}
+	})
+
+	t.Run("redirected output is plain", func(t *testing.T) {
+		unsetTestEnv(t, "NO_COLOR")
+		var redirected bytes.Buffer
+		statusOutput := NewStatusOutput(&redirected, "", false, false, false, false, false)
+		statusOutput.(*simpleStatusOutput).PhaseStatus(status.NinjaPhase, "Starting Ninja/Siso execution")
+		statusOutput.Flush()
+
+		if got, want := redirected.String(), "[Build] Starting Ninja/Siso execution\n"; got != want {
+			t.Fatalf("redirected output = %q, want %q", got, want)
+		}
+	})
+}
+
+func unsetTestEnv(t *testing.T, key string) {
+	t.Helper()
+	value, wasSet := os.LookupEnv(key)
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if wasSet {
+			_ = os.Setenv(key, value)
+		} else {
+			_ = os.Unsetenv(key)
+		}
+	})
+}
+
 func TestStatusOutput(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
 	tests := []struct {
 		name   string
 		calls  func(stat status.StatusOutput)
@@ -345,6 +416,7 @@ func TestSuppressOutputAndSkipActionProgress(t *testing.T) {
 }
 
 func TestSmartStatusOutputWidthChange(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
 	os.Setenv(tableHeightEnVar, "")
 
 	smart := &fakeSmartTerminal{termWidth: 40}
@@ -374,6 +446,7 @@ func TestSmartStatusOutputWidthChange(t *testing.T) {
 }
 
 func TestSmartStatusDoesntHideAfterSucecss(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
 	os.Setenv(tableHeightEnVar, "")
 
 	smart := &fakeSmartTerminal{termWidth: 40}
@@ -410,6 +483,7 @@ func TestSmartStatusDoesntHideAfterSucecss(t *testing.T) {
 }
 
 func TestSmartStatusHideAfterFailure(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
 	os.Setenv(tableHeightEnVar, "")
 
 	smart := &fakeSmartTerminal{termWidth: 40}
@@ -447,6 +521,7 @@ func TestSmartStatusHideAfterFailure(t *testing.T) {
 }
 
 func TestSmartStatusHideAfterFailurePlural(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
 	os.Setenv(tableHeightEnVar, "")
 
 	smart := &fakeSmartTerminal{termWidth: 40}
@@ -492,6 +567,7 @@ func TestSmartStatusHideAfterFailurePlural(t *testing.T) {
 }
 
 func TestSmartStatusDontHideErrorAfterFailure(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
 	os.Setenv(tableHeightEnVar, "")
 
 	smart := &fakeSmartTerminal{termWidth: 40}
@@ -530,6 +606,7 @@ func TestSmartStatusDontHideErrorAfterFailure(t *testing.T) {
 }
 
 func TestSmartStatusSuppressOutput(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
 	os.Setenv(tableHeightEnVar, "")
 
 	smart := &fakeSmartTerminal{termWidth: 40}

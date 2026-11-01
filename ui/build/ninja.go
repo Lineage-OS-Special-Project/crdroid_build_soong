@@ -410,7 +410,7 @@ func runNinja(ctx Context, config Config, ninjaArgs []string) {
 
 	ctx.ExecutionMetrics.Start()
 	defer ctx.ExecutionMetrics.Finish(ExecutionMetricsFinishAdaptor{ctx})
-	ctx.Status.Status("[Build] Starting Ninja/Siso execution")
+	ctx.Status.StatusPhase(status.NinjaPhase, "Starting Ninja/Siso execution")
 	cmd.RunAndStreamOrFatal()
 
 	// Post build execution.

@@ -135,6 +135,10 @@ func (s *smartStatusOutput) Message(level status.MsgLevel, message string) {
 	}
 }
 
+func (s *smartStatusOutput) PhaseStatus(phase status.BuildPhase, description string) {
+	s.Message(status.StatusLvl, s.formatter.phaseStatus(phase, description))
+}
+
 func (s *smartStatusOutput) StartAction(action *status.Action, counts status.Counts) {
 	startTime := time.Now()
 
@@ -445,6 +449,10 @@ func (ansiImpl) red() string {
 
 func (ansiImpl) yellow() string {
 	return "\x1b[33m"
+}
+
+func (ansiImpl) cyan() string {
+	return "\x1b[36m"
 }
 
 func (ansiImpl) bold() string {

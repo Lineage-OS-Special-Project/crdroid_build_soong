@@ -178,6 +178,28 @@ const (
 	ErrorLvl
 )
 
+// BuildPhase identifies a high-level Soong UI build phase. Unlike ordinary
+// status messages, phase messages may be styled by terminal outputs.
+type BuildPhase string
+
+const (
+	ConfigurationPhase BuildPhase = "Configuration"
+	SoongPhase         BuildPhase = "Soong"
+	KatiPhase          BuildPhase = "Kati"
+	NinjaPhase         BuildPhase = "Build"
+)
+
+func (p BuildPhase) message(description string) string {
+	return "[" + string(p) + "] " + description
+}
+
+// PhaseStatusOutput is an optional StatusOutput interface for rendering
+// structured phase messages. Outputs that do not implement it receive the
+// plain message through Message instead.
+type PhaseStatusOutput interface {
+	PhaseStatus(phase BuildPhase, description string)
+}
+
 func (l MsgLevel) Prefix() string {
 	switch l {
 	case VerboseLvl:
@@ -317,6 +339,21 @@ func (s *Status) message(level MsgLevel, msg string) {
 
 func (s *Status) Status(msg string) {
 	s.message(StatusLvl, msg)
+}
+
+// StatusPhase reports a structured build phase. Non-terminal outputs receive
+// the plain text form so logs never contain terminal styling.
+func (s *Status) StatusPhase(phase BuildPhase, description string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	for _, o := range s.outputs {
+		if phaseOutput, ok := o.(PhaseStatusOutput); ok {
+			phaseOutput.PhaseStatus(phase, description)
+		} else {
+			o.Message(StatusLvl, phase.message(description))
+		}
+	}
 }
 
 func (s *Status) Error(msg string) {
