@@ -588,6 +588,7 @@ func migrateOutputSymlinks(ctx Context, config Config) error {
 func runSoong(ctx Context, config Config, enforceNoSoongOutput bool) {
 	e := ctx.BeginTrace(metrics.RunSoong, "soong")
 	defer e.End()
+	ctx.Status.Status("[Soong] Blueprint bootstrap and graph analysis")
 
 	if err := migrateOutputSymlinks(ctx, config); err != nil {
 		ctx.Fatalf("failed to migrate output directory to current TOP dir: %v", err)

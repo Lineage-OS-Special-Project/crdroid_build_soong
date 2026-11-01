@@ -239,6 +239,7 @@ func runKati(ctx Context, config Config, e *TraceEvent, extraSuffix string, args
 func runKatiBuild(ctx Context, config Config) {
 	e := ctx.BeginTrace(metrics.RunKati, "kati build")
 	defer e.End()
+	ctx.Status.Status("[Kati] Makefile and packaging generation")
 
 	args := []string{
 		// Mark the output directory as writable.
