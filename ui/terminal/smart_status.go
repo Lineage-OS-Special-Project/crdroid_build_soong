@@ -443,16 +443,43 @@ func (ansiImpl) resetScrollingMargins() string {
 	return fmt.Sprintf("\x1b[r")
 }
 
-func (ansiImpl) red() string {
+func (ansiImpl) red() string { return "\x1b[31m" }
+
+func (ansiImpl) redColor(trueColor bool) string {
+	if trueColor {
+		return "\x1b[38;2;201;87;87m"
+	}
 	return "\x1b[31m"
 }
 
-func (ansiImpl) yellow() string {
+func (ansiImpl) teal(trueColor bool) string {
+	if trueColor {
+		return "\x1b[38;2;16;200;200m"
+	}
+	return "\x1b[36m"
+}
+
+func (ansiImpl) green(trueColor bool) string {
+	if trueColor {
+		return "\x1b[38;2;69;169;120m"
+	}
+	return "\x1b[32m"
+}
+
+func (ansiImpl) yellowColor(trueColor bool) string {
+	if trueColor {
+		return "\x1b[38;2;201;150;50m"
+	}
 	return "\x1b[33m"
 }
 
-func (ansiImpl) cyan() string {
-	return "\x1b[36m"
+func (ansiImpl) yellow() string { return "\x1b[33m" }
+
+func (ansiImpl) blue(trueColor bool) string {
+	if trueColor {
+		return "\x1b[38;2;79;134;168m"
+	}
+	return "\x1b[34m"
 }
 
 func (ansiImpl) bold() string {
