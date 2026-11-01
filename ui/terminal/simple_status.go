@@ -52,6 +52,10 @@ func (s *simpleStatusOutput) Message(level status.MsgLevel, message string) {
 	}
 }
 
+func (s *simpleStatusOutput) PhaseStatus(phase status.BuildPhase, description string) {
+	s.Message(status.StatusLvl, "["+string(phase)+"] "+description)
+}
+
 func (s *simpleStatusOutput) StartAction(action *status.Action, counts status.Counts) {
 }
 

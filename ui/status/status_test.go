@@ -99,6 +99,29 @@ func TestBasicUse(t *testing.T) {
 	})
 }
 
+type messageCapture struct {
+	message string
+}
+
+func (*messageCapture) StartAction(*Action, Counts)       {}
+func (*messageCapture) FinishAction(ActionResult, Counts) {}
+func (m *messageCapture) Message(_ MsgLevel, message string) {
+	m.message = message
+}
+func (*messageCapture) Flush()                      {}
+func (*messageCapture) Write(p []byte) (int, error) { return len(p), nil }
+
+func TestStatusPhaseUsesPlainMessageForLogOutputs(t *testing.T) {
+	output := &messageCapture{}
+	s := &Status{}
+	s.AddOutput(output)
+	s.StatusPhase(SoongPhase, "Blueprint bootstrap and graph analysis")
+
+	if want := "[Soong] Blueprint bootstrap and graph analysis"; output.message != want {
+		t.Fatalf("StatusPhase message = %q, want %q", output.message, want)
+	}
+}
+
 // For when a tool claims to have 2 actions, but finishes after one.
 func TestFinishEarly(t *testing.T) {
 	status := &Status{}
