@@ -23,10 +23,11 @@ import (
 )
 
 type formatter struct {
-	colorize bool
-	format   string
-	quiet    bool
-	start    time.Time
+	colorize      bool
+	phaseColorize bool
+	format        string
+	quiet         bool
+	start         time.Time
 }
 
 // newFormatter returns a formatter for formatting output to
@@ -51,6 +52,17 @@ func (s formatter) message(level status.MsgLevel, message string) string {
 		return message
 	}
 	return ""
+}
+
+func (s formatter) phaseStatus(phase status.BuildPhase, description string) string {
+	marker := "[" + string(phase) + "]"
+	if !s.phaseColorize {
+		return marker + " " + description
+	}
+	// Standard cyan is the closest existing semantic color. Keep the reset
+	// between the marker and description, then restore the status line's bold
+	// style so only the marker changes foreground color.
+	return ansi.cyan() + marker + ansi.regular() + ansi.bold() + " " + description
 }
 
 func remainingTimeString(t time.Time) string {
