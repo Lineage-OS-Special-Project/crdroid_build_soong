@@ -39,7 +39,10 @@ type ContextImpl struct {
 	ExecutionMetrics *execution_metrics.ExecutionMetrics
 
 	Writer io.Writer
-	Status *status.Status
+	// TerminalColorMode contains the selected LOSP success color, or empty for
+	// plain/redirected output.
+	TerminalColorMode string
+	Status            *status.Status
 
 	Thread tracer.Thread
 	Tracer tracer.Tracer

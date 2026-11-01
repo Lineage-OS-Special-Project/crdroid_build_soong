@@ -17,6 +17,7 @@ package terminal
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"syscall"
@@ -132,6 +133,43 @@ func TestLOSPColorPolicy(t *testing.T) {
 	stat.Flush()
 	if strings.Contains(redirected.String(), "\x1b[") {
 		t.Fatalf("redirected output contains ANSI: %q", redirected.String())
+	}
+}
+
+func TestCleanStatusColorFor(t *testing.T) {
+	tests := []struct {
+		name, colorTerm, noColor, term string
+		forceSimple                    bool
+		interactive                    bool
+		want                           string
+	}{
+		{name: "ANSI terminal", term: "xterm-256color", interactive: true, want: "\x1b[36m"},
+		{name: "truecolor terminal", colorTerm: "truecolor", term: "xterm-256color", interactive: true, want: "\x1b[38;2;16;200;200m"},
+		{name: "NO_COLOR", colorTerm: "truecolor", noColor: "1", term: "xterm-256color", interactive: true},
+		{name: "dumb terminal", term: "dumb", interactive: true},
+		{name: "forced simple", term: "xterm-256color", forceSimple: true, interactive: true},
+		{name: "redirected", term: "xterm-256color"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			unsetTestEnv(t, "NO_COLOR")
+			unsetTestEnv(t, "COLORTERM")
+			if tt.noColor != "" {
+				t.Setenv("NO_COLOR", tt.noColor)
+			}
+			if tt.colorTerm != "" {
+				t.Setenv("COLORTERM", tt.colorTerm)
+			}
+			t.Setenv("TERM", tt.term)
+
+			var writer io.Writer = &bytes.Buffer{}
+			if tt.interactive {
+				writer = &fakeSmartTerminal{termWidth: 80}
+			}
+			if got := CleanStatusColorFor(writer, tt.forceSimple); got != tt.want {
+				t.Fatalf("CleanStatusColorFor() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

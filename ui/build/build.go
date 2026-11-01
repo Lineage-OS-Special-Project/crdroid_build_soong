@@ -361,7 +361,6 @@ func Build(ctx Context, config Config) {
 		inList("install-clean", config.Arguments()) {
 		logArgsOtherThan("installclean", "install-clean")
 		installClean(ctx, config)
-		ctx.Println("Deleted images and staging directories.")
 		return
 	}
 

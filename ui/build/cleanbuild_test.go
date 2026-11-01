@@ -26,6 +26,113 @@ import (
 	"testing"
 )
 
+func TestInstallCleanOutput(t *testing.T) {
+	root := t.TempDir()
+	outDir := filepath.Join(root, "out")
+	productOut := filepath.Join(outDir, "target", "product", "test")
+	dataFile := filepath.Join(productOut, "data", "example")
+	logFile := filepath.Join(outDir, "verbose.log.gz")
+	imageFile := filepath.Join(productOut, "system.img")
+	stagingFile := filepath.Join(productOut, "install", "system.img")
+	for _, path := range []string{dataFile, logFile, imageFile, stagingFile} {
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	output := &bytes.Buffer{}
+	ctx := testContext()
+	ctx.Logger = logger.New(output)
+	ctx.Writer = output
+	config := Config{&configImpl{
+		environ:      (&Environment{}),
+		targetDevice: "test",
+	}}
+	config.environ.Set("OUT_DIR", outDir)
+
+	installClean(ctx, config)
+
+	got := output.String()
+	want := "Install clean completed: data, logs, images and staging removed.\n\n"
+	if got != want {
+		t.Fatalf("installClean output = %q, want %q", got, want)
+	}
+	for _, path := range []string{dataFile, logFile, imageFile, stagingFile} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("installClean left %s: stat error = %v", path, err)
+		}
+	}
+}
+
+func TestInstallCleanOutputColorResetBeforeBlankLine(t *testing.T) {
+	output := &bytes.Buffer{}
+	ctx := testContext()
+	ctx.Logger = logger.New(output)
+	ctx.Writer = output
+	ctx.TerminalColorMode = "\x1b[36m"
+	config := Config{&configImpl{environ: &Environment{}, targetDevice: "test"}}
+	config.environ.Set("OUT_DIR", t.TempDir())
+
+	installClean(ctx, config)
+
+	got := output.String()
+	want := "\x1b[36mInstall clean completed: data, logs, images and staging removed.\x1b[0m\n\n"
+	if got != want {
+		t.Fatalf("installClean colored output = %q, want %q", got, want)
+	}
+}
+
+func TestDataCleanOutput(t *testing.T) {
+	root := t.TempDir()
+	productOut := filepath.Join(root, "target", "product", "test")
+	dataFile := filepath.Join(productOut, "data", "example")
+	if err := os.MkdirAll(filepath.Dir(dataFile), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dataFile, []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	output := &bytes.Buffer{}
+	ctx := testContext()
+	ctx.Logger = logger.New(output)
+	ctx.Writer = output
+	config := Config{&configImpl{environ: (&Environment{}), targetDevice: "test"}}
+	config.environ.Set("OUT_DIR", root)
+
+	dataClean(ctx, config)
+
+	if got, want := output.String(), "Entire data directory removed.\n"; !strings.HasSuffix(got, want) || strings.Count(got, "Entire data directory removed.") != 1 {
+		t.Fatalf("dataClean output = %q, want one success message ending in %q", got, want)
+	}
+	if _, err := os.Stat(dataFile); !os.IsNotExist(err) {
+		t.Errorf("dataClean left %s: stat error = %v", dataFile, err)
+	}
+}
+
+func TestInstallCleanDoesNotReportSuccessAfterGlobFailure(t *testing.T) {
+	output := &bytes.Buffer{}
+	ctx := testContext()
+	ctx.Logger = logger.New(output)
+	ctx.Writer = output
+	config := Config{&configImpl{environ: &Environment{}, targetDevice: "test"}}
+	config.environ.Set("OUT_DIR", filepath.Join(t.TempDir(), "invalid["))
+
+	defer func() {
+		if recovered := recover(); recovered == nil {
+			t.Fatal("installClean did not propagate the invalid glob failure")
+		}
+		if strings.Contains(output.String(), "Install clean completed:") {
+			t.Fatalf("installClean printed success after failure: %q", output.String())
+		}
+	}()
+
+	installClean(ctx, config)
+}
+
 func TestCleanOldFiles(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testcleanoldfiles")
 	if err != nil {
