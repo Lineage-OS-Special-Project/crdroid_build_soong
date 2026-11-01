@@ -46,3 +46,21 @@ func NewStatusOutput(w io.Writer, statusFormat string, forceSimpleOutput, quietB
 			suppressOutput)
 	}
 }
+
+// CleanStatusColorFor returns the LOSP teal styling when stdout is an
+// interactive terminal and output is not forced into simple mode.
+func CleanStatusColorFor(w io.Writer, forceSimpleOutput bool) string {
+	if forceSimpleOutput || !isSmartTerminal(w) {
+		return ""
+	}
+	if _, noColor := os.LookupEnv("NO_COLOR"); noColor {
+		return ""
+	}
+	if term, ok := os.LookupEnv("TERM"); ok && term == "dumb" {
+		return ""
+	}
+	if colorTerm, ok := os.LookupEnv("COLORTERM"); ok && (colorTerm == "truecolor" || colorTerm == "24bit") {
+		return ansi.teal(true)
+	}
+	return ansi.teal(false)
+}

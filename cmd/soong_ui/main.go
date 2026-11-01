@@ -185,15 +185,16 @@ func main() {
 	criticalPath := status.NewCriticalPath()
 	emet := execution_metrics.NewExecutionMetrics(log)
 	buildCtx := build.Context{ContextImpl: &build.ContextImpl{
-		Context:          ctx,
-		Logger:           log,
-		Metrics:          met,
-		ExecutionMetrics: emet,
-		Tracer:           trace,
-		Writer:           output,
-		Status:           stat,
-		CriticalPath:     criticalPath,
-		SigNumFunc:       sigNumFunc,
+		Context:           ctx,
+		Logger:            log,
+		Metrics:           met,
+		ExecutionMetrics:  emet,
+		Tracer:            trace,
+		Writer:            output,
+		TerminalColorMode: terminal.CleanStatusColorFor(c.stdio().Stdout(), c.simpleOutput),
+		Status:            stat,
+		CriticalPath:      criticalPath,
+		SigNumFunc:        sigNumFunc,
 	}}
 
 	config := c.config(buildCtx, args...)
