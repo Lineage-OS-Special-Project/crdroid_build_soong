@@ -25,10 +25,13 @@ import (
 type formatter struct {
 	colorize      bool
 	phaseColorize bool
+	trueColor     bool
 	format        string
 	quiet         bool
 	start         time.Time
 }
+
+const lospStatusFormat = "__LOSP_NINJA_STATUS_V1__"
 
 // newFormatter returns a formatter for formatting output to
 // the terminal in a format similar to Ninja.
@@ -62,7 +65,7 @@ func (s formatter) phaseStatus(phase status.BuildPhase, description string) stri
 	// Standard cyan is the closest existing semantic color. Keep the reset
 	// between the marker and description, then restore the status line's bold
 	// style so only the marker changes foreground color.
-	return ansi.cyan() + marker + ansi.regular() + ansi.bold() + " " + description
+	return ansi.teal(s.trueColor) + marker + ansi.regular() + ansi.bold() + " " + description
 }
 
 func remainingTimeString(t time.Time) string {
@@ -73,6 +76,27 @@ func remainingTimeString(t time.Time) string {
 	return time.Duration(0).Round(time.Duration(time.Second)).String()
 }
 func (s formatter) progress(counts status.Counts) string {
+	if s.format == lospStatusFormat {
+		var b strings.Builder
+		b.WriteString("[")
+		b.WriteString(s.progressColor(ansi.green(s.trueColor)))
+		fmt.Fprintf(&b, "%d", counts.FinishedActions)
+		b.WriteString(s.progressColor(ansi.regular()))
+		b.WriteString("/")
+		b.WriteString(s.progressColor(ansi.teal(s.trueColor)))
+		fmt.Fprintf(&b, "%d", counts.TotalActions)
+		b.WriteString(s.progressColor(ansi.regular()))
+		b.WriteString(" (")
+		b.WriteString(s.progressColor(ansi.blue(s.trueColor)))
+		fmt.Fprintf(&b, "%3d%%", 100*counts.FinishedActions/counts.TotalActions)
+		b.WriteString(s.progressColor(ansi.regular()))
+		b.WriteString(") Elapsed: ")
+		b.WriteString(s.progressColor(ansi.yellowColor(s.trueColor)))
+		fmt.Fprintf(&b, "%.3f", time.Since(s.start).Seconds())
+		b.WriteString(s.progressColor(ansi.regular()))
+		b.WriteString("]                                          ")
+		return b.String()
+	}
 	if s.format == "" {
 		output := fmt.Sprintf("[%3d%% %d/%d", 100*counts.FinishedActions/counts.TotalActions, counts.FinishedActions, counts.TotalActions)
 
@@ -136,6 +160,13 @@ func (s formatter) progress(counts status.Counts) string {
 	return buf.String()
 }
 
+func (s formatter) progressColor(color string) string {
+	if s.colorize {
+		return color
+	}
+	return ""
+}
+
 func (s formatter) result(result status.ActionResult) string {
 	var ret string
 	if result.Error != nil {
@@ -159,7 +190,7 @@ func (s formatter) result(result status.ActionResult) string {
 func (s formatter) failedString() string {
 	failed := "FAILED:"
 	if s.colorize {
-		failed = ansi.red() + ansi.bold() + failed + ansi.regular()
+		failed = ansi.redColor(s.trueColor) + ansi.bold() + failed + ansi.regular()
 	}
 	return failed
 }
