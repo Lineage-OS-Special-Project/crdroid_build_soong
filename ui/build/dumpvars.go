@@ -264,6 +264,10 @@ func Banner(config Config, make_vars map[string]string) string {
 	return b.String()
 }
 
+func shouldPrintBanner(env *Environment) bool {
+	return !env.IsEnvTrue("ANDROID_QUIET_BUILD") && !env.IsEnvTrue("LOSP_CLEAN_ONLY_INVOCATION")
+}
+
 // parseResolvedBool reports a boolean only for values explicitly recognized by
 // Make's boolean conventions. An unset or unrecognized value has no display
 // state, so it must not be presented as Vanilla.
@@ -440,7 +444,7 @@ func runMakeProductConfig(ctx Context, config Config) {
 	}
 
 	// Print the banner like make did
-	if !env.IsEnvTrue("ANDROID_QUIET_BUILD") {
+	if shouldPrintBanner(env) {
 		fmt.Fprintln(ctx.Writer, Banner(config, makeVars))
 	}
 }
