@@ -128,3 +128,23 @@ func TestParseResolvedBool(t *testing.T) {
 		}
 	}
 }
+
+func TestShouldPrintBanner(t *testing.T) {
+	tests := []struct {
+		name string
+		env  Environment
+		want bool
+	}{
+		{name: "normal build", env: Environment{}, want: true},
+		{name: "clean only", env: Environment{"LOSP_CLEAN_ONLY_INVOCATION=true"}, want: false},
+		{name: "quiet build", env: Environment{"ANDROID_QUIET_BUILD=true"}, want: false},
+		{name: "unrecognized clean value", env: Environment{"LOSP_CLEAN_ONLY_INVOCATION=installclean losp"}, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldPrintBanner(&tt.env); got != tt.want {
+				t.Errorf("shouldPrintBanner() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
