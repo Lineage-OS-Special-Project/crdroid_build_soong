@@ -97,15 +97,13 @@ func NewSmartStatusOutput(w io.Writer,
 	}
 
 	if s.tableMode {
-		// Add empty lines at the bottom of the screen to scroll back the existing history
-		// and make room for the action table.
-		// TODO: read the cursor position to see if the empty lines are necessary?
-		for i := 0; i < s.tableHeight; i++ {
-			fmt.Fprintln(w)
-		}
-
 		// Hide the cursor to prevent seeing it bouncing around
 		fmt.Fprintf(s.writer, ansi.hideCursor())
+		// Reserve the action table at the bottom of the screen. The scrolling
+		// region ends immediately above it, so move into that row before setting
+		// the margins to avoid scrolling the existing screen during setup.
+		fmt.Fprintf(s.writer, ansi.setCursor(s.termHeight-s.tableHeight, 1))
+		fmt.Fprintf(s.writer, ansi.setScrollingMargins(1, s.termHeight-s.tableHeight))
 
 		// Configure the empty action table
 		s.actionTable()
@@ -233,11 +231,12 @@ func (s *smartStatusOutput) Flush() {
 		// Update the table after clearing runningActions to clear it
 		s.actionTable()
 
-		// Reset the scrolling region to the whole terminal
+		// Return to the last row of the scrolling area. Subsequent output starts
+		// there and scrolls through the former action table rows naturally.
+		fmt.Fprintf(s.writer, ansi.setCursor(s.termHeight, 1))
+		// Restore full-screen scrolling only after positioning the cursor, so
+		// neither cleanup nor the next invocation inserts padding lines.
 		fmt.Fprintf(s.writer, ansi.resetScrollingMargins())
-		_, height, _ := termSize(s.writer)
-		// Move the cursor to the top of the now-blank, previously non-scrolling region
-		fmt.Fprintf(s.writer, ansi.setCursor(height-s.tableHeight, 1))
 		// Turn the cursor back on
 		fmt.Fprintf(s.writer, ansi.showCursor())
 	}

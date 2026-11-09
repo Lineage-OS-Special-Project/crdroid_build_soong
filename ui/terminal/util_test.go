@@ -14,7 +14,56 @@
 
 package terminal
 
-import "testing"
+import (
+	"bytes"
+	"io"
+	"os"
+	"testing"
+)
+
+func TestInstallCleanColor(t *testing.T) {
+	tests := []struct {
+		name      string
+		term      string
+		colorTerm string
+		noColor   bool
+		want      string
+	}{
+		{"truecolor", "xterm", "truecolor", false, "truecolor"},
+		{"24bit", "xterm", "24bit", false, "truecolor"},
+		{"ansi", "xterm", "", false, "ansi"},
+		{"redirected", "xterm", "truecolor", false, "none"},
+		{"no color", "xterm", "truecolor", true, "none"},
+		{"dumb", "dumb", "truecolor", false, "none"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TERM", tt.term)
+			t.Setenv("COLORTERM", tt.colorTerm)
+			if tt.noColor {
+				t.Setenv("NO_COLOR", "1")
+			} else {
+				if err := os.Unsetenv("NO_COLOR"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var writer io.Writer = &fakeSmartTerminal{termWidth: 80}
+			if tt.name == "redirected" {
+				writer = &bytes.Buffer{}
+			}
+			got := CleanStatusColorFor(writer, false, false)
+			want := ""
+			if tt.want == "truecolor" {
+				want = "\x1b[38;2;16;200;200m"
+			} else if tt.want == "ansi" {
+				want = "\x1b[36m"
+			}
+			if got != want {
+				t.Fatalf("CleanStatusColor() = %q, want %q", got, want)
+			}
+		})
+	}
+}
 
 func TestIsSmartTerminalTermDumb(t *testing.T) {
 	t.Setenv("TERM", "dumb")

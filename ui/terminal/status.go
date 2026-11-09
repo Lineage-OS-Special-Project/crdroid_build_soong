@@ -47,6 +47,24 @@ func NewStatusOutput(w io.Writer, statusFormat string, forceSimpleOutput, quietB
 	}
 }
 
+// CleanStatusColor returns the LOSP teal styling for the supplied color mode.
+func CleanStatusColor(mode string) string {
+	if mode == "truecolor" {
+		return "\x1b[38;2;16;200;200m"
+	}
+	if mode == "ansi" {
+		return "\x1b[36m"
+	}
+	return ""
+}
+
+// CleanStatusColorFor returns the clean confirmation color when stdout policy
+// permits ANSI color. Build status output can be wrapped, so callers must pass
+// the actual stdout writer used to determine terminal eligibility.
+func CleanStatusColorFor(w io.Writer, forceSimpleOutput, forceANSI bool) string {
+	return CleanStatusColor(ColorMode(w, forceSimpleOutput, forceANSI))
+}
+
 // ColorMode reports the color policy for build actions whose output is captured
 // before it is replayed through the terminal status writer. The returned mode
 // is deliberately a single, explicit value for that output pipeline.

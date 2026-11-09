@@ -59,32 +59,32 @@ const (
 )
 
 func clean(ctx Context, config Config) {
-    outDir := config.OutDir()
-    
-    // Delete everything in outDir EXCEPT the "soong" directory
-    if entries, err := os.ReadDir(outDir); err == nil {
-        for _, entry := range entries {
-            if entry.Name() != "soong" {  // Skip the "soong" directory
-                path := filepath.Join(outDir, entry.Name())
-                if err := os.RemoveAll(path); err != nil {
-                    ctx.Printf("Failed to remove %s: %v\n", path, err)
-                }
-            }
-        }
-    }
-    
-    // Delete contents of "soong" but preserve the directory itself
-    soongDir := filepath.Join(outDir, "soong")
-    if entries, err := os.ReadDir(soongDir); err == nil {
-        for _, entry := range entries {
-            path := filepath.Join(soongDir, entry.Name())
-            if err := os.RemoveAll(path); err != nil {
-                ctx.Printf("Failed to remove %s: %v\n", path, err)
-            }
-        }
-    }
-    
-    ctx.Println("Build directory cleaned (soong directory preserved).")
+	outDir := config.OutDir()
+
+	// Delete everything in outDir EXCEPT the "soong" directory
+	if entries, err := os.ReadDir(outDir); err == nil {
+		for _, entry := range entries {
+			if entry.Name() != "soong" { // Skip the "soong" directory
+				path := filepath.Join(outDir, entry.Name())
+				if err := os.RemoveAll(path); err != nil {
+					ctx.Printf("Failed to remove %s: %v\n", path, err)
+				}
+			}
+		}
+	}
+
+	// Delete contents of "soong" but preserve the directory itself
+	soongDir := filepath.Join(outDir, "soong")
+	if entries, err := os.ReadDir(soongDir); err == nil {
+		for _, entry := range entries {
+			path := filepath.Join(soongDir, entry.Name())
+			if err := os.RemoveAll(path); err != nil {
+				ctx.Printf("Failed to remove %s: %v\n", path, err)
+			}
+		}
+	}
+
+	ctx.Println("Build directory cleaned (soong directory preserved).")
 }
 
 // Remove everything in the data directory.
@@ -133,23 +133,23 @@ func installClean(ctx Context, config Config) {
 	}
 
 	removeGlobs(ctx,
-    filepath.Join(config.OutDir(), "*.log"),
-    filepath.Join(config.OutDir(), "*.trace"),
-    filepath.Join(config.OutDir(), "build_metrics.json"),
-    filepath.Join(config.OutDir(), "ninja_log*"))
+		filepath.Join(config.OutDir(), "*.log"),
+		filepath.Join(config.OutDir(), "*.trace"),
+		filepath.Join(config.OutDir(), "build_metrics.json"),
+		filepath.Join(config.OutDir(), "ninja_log*"))
 
 	removeGlobs(ctx,
-    // Comprehensive pattern coverage
-    filepath.Join(config.OutDir(), "*.log*"),          // All log files and rotations
-    filepath.Join(config.OutDir(), "*.trace*"),        // All trace files
-    filepath.Join(config.OutDir(), "*.gz"),            // All gzipped files
-    filepath.Join(config.OutDir(), "build_metrics*"),  // Build metrics
-    filepath.Join(config.OutDir(), "ninja_log*"),      // Ninja logs
-    filepath.Join(config.OutDir(), "dumpvars*"),       // All dumpvars outputs
-    
-    // Specific verbose/error logs (redundant but explicit)
-    filepath.Join(config.OutDir(), "verbose.log*"),
-    filepath.Join(config.OutDir(), "error.log*"))
+		// Comprehensive pattern coverage
+		filepath.Join(config.OutDir(), "*.log*"),         // All log files and rotations
+		filepath.Join(config.OutDir(), "*.trace*"),       // All trace files
+		filepath.Join(config.OutDir(), "*.gz"),           // All gzipped files
+		filepath.Join(config.OutDir(), "build_metrics*"), // Build metrics
+		filepath.Join(config.OutDir(), "ninja_log*"),     // Ninja logs
+		filepath.Join(config.OutDir(), "dumpvars*"),      // All dumpvars outputs
+
+		// Specific verbose/error logs (redundant but explicit)
+		filepath.Join(config.OutDir(), "verbose.log*"),
+		filepath.Join(config.OutDir(), "error.log*"))
 
 	removeGlobs(ctx, filepath.Join(config.OutDir(), "soong", "*.glob*"))
 
@@ -211,7 +211,13 @@ func installClean(ctx Context, config Config) {
 		productOut("symbols"),
 		productOut("install"))
 
-	ctx.Println("Install clean completed: data, logs, images and staging removed.")
+	const installCleanMessage = "Install clean completed: data, logs, images and staging removed."
+	color := ctx.TerminalColorMode
+	reset := ""
+	if color != "" {
+		reset = "\x1b[0m"
+	}
+	ctx.Status.Status(color + installCleanMessage + reset)
 }
 
 // Since products and build variants (unfortunately) shared the same

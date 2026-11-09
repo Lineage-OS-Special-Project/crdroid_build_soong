@@ -38,8 +38,9 @@ type ContextImpl struct {
 	Metrics          *metrics.Metrics
 	ExecutionMetrics *execution_metrics.ExecutionMetrics
 
-	Writer io.Writer
-	Status *status.Status
+	Writer            io.Writer
+	TerminalColorMode string
+	Status            *status.Status
 
 	Thread tracer.Thread
 	Tracer tracer.Tracer

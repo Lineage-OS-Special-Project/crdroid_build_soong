@@ -191,9 +191,11 @@ func main() {
 		ExecutionMetrics: emet,
 		Tracer:           trace,
 		Writer:           output,
-		Status:           stat,
-		CriticalPath:     criticalPath,
-		SigNumFunc:       sigNumFunc,
+		TerminalColorMode: terminal.CleanStatusColorFor(c.stdio().Stdout(), c.simpleOutput,
+			build.OsEnvironment().IsEnvTrue("SOONG_UI_ANSI_OUTPUT")),
+		Status:       stat,
+		CriticalPath: criticalPath,
+		SigNumFunc:   sigNumFunc,
 	}}
 
 	config := c.config(buildCtx, args...)

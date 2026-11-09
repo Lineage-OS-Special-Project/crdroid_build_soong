@@ -16,6 +16,7 @@ package build
 
 import (
 	"android/soong/ui/logger"
+	"android/soong/ui/status"
 	"bytes"
 	"io/ioutil"
 	"os"
@@ -44,9 +45,11 @@ func TestInstallCleanOutput(t *testing.T) {
 	}
 
 	output := &bytes.Buffer{}
+	statusOutput := &bytes.Buffer{}
 	ctx := testContext()
 	ctx.Logger = logger.New(output)
 	ctx.Writer = output
+	ctx.Status.AddOutput(&cleanTestStatusOutput{output: statusOutput})
 	config := Config{&configImpl{
 		environ:      (&Environment{}),
 		targetDevice: "test",
@@ -55,10 +58,13 @@ func TestInstallCleanOutput(t *testing.T) {
 
 	installClean(ctx, config)
 
-	got := output.String()
+	got := statusOutput.String()
 	want := "Install clean completed: data, logs, images and staging removed."
 	if !strings.Contains(got, want) || strings.Count(got, "\n") != 1 || strings.Count(got, want) != 1 {
-		t.Fatalf("installClean output = %q, want exactly one summary line containing %q", got, want)
+		t.Fatalf("installClean status output = %q, want exactly one summary line containing %q", got, want)
+	}
+	if strings.Contains(output.String(), want) {
+		t.Fatalf("installClean wrote confirmation to timestamped logger: %q", output.String())
 	}
 	for _, path := range []string{dataFile, logFile, imageFile, stagingFile} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -66,6 +72,18 @@ func TestInstallCleanOutput(t *testing.T) {
 		}
 	}
 }
+
+type cleanTestStatusOutput struct {
+	output *bytes.Buffer
+}
+
+func (o *cleanTestStatusOutput) StartAction(*status.Action, status.Counts)       {}
+func (o *cleanTestStatusOutput) FinishAction(status.ActionResult, status.Counts) {}
+func (o *cleanTestStatusOutput) Message(_ status.MsgLevel, message string) {
+	o.output.WriteString(message + "\n")
+}
+func (o *cleanTestStatusOutput) Flush()                      {}
+func (o *cleanTestStatusOutput) Write(p []byte) (int, error) { return o.output.Write(p) }
 
 func TestDataCleanOutput(t *testing.T) {
 	root := t.TempDir()

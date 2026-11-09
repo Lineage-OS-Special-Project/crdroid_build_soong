@@ -211,6 +211,31 @@ func TestSmartProgressAndPhasePresentation(t *testing.T) {
 	}
 }
 
+func TestSmartStatusFlushLeavesCursorAtBottomForNextInvocation(t *testing.T) {
+	setTestColorEnv(t, "")
+	t.Setenv(tableHeightEnVar, "2")
+	term := &fakeSmartTerminal{termWidth: 80, termHeight: 8}
+
+	for i := 0; i < 2; i++ {
+		stat := &status.Status{}
+		stat.AddOutput(NewStatusOutput(term, "", false, false, false, false, false))
+		stat.Error(fmt.Sprintf("invocation %d", i+1))
+		// Soong's interruption handler calls Status.Finish after signal cleanup.
+		stat.Finish()
+	}
+
+	got := term.String()
+	if strings.Count(got, "invocation 1") != 1 || strings.Count(got, "invocation 2") != 1 {
+		t.Fatalf("consecutive invocation output = %q", got)
+	}
+	if !strings.Contains(got, "\x1b[8;1H\x1b[r\x1b[?25h") {
+		t.Fatalf("flush did not return to terminal bottom and restore cursor: %q", got)
+	}
+	if strings.Contains(got, "\n\n") {
+		t.Fatalf("consecutive invocations introduced blank gaps: %q", got)
+	}
+}
+
 func TestSmartStatusTableRefreshesProgressAndKeepsDescriptionInTable(t *testing.T) {
 	setTestColorEnv(t, "")
 	t.Setenv(tableHeightEnVar, "1")
@@ -319,6 +344,18 @@ func TestColorModeUsesStatusOutputPolicy(t *testing.T) {
 				t.Fatalf("ColorMode() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCleanStatusColor(t *testing.T) {
+	for mode, want := range map[string]string{
+		"truecolor": "\x1b[38;2;16;200;200m",
+		"ansi":      "\x1b[36m",
+		"none":      "",
+	} {
+		if got := CleanStatusColor(mode); got != want {
+			t.Errorf("CleanStatusColor(%q) = %q, want %q", mode, got, want)
+		}
 	}
 }
 
