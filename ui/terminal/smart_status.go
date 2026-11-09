@@ -272,8 +272,7 @@ func (s *smartStatusOutput) statusLine(str string) {
 	// another line and we won't delete the previous line.
 	str = elide(str, s.termWidth)
 
-	// Move to the beginning on the line, turn on bold, print the output,
-	// turn off bold, then clear the rest of the line.
+	// Keep Ninja status lines bold, then clear the rest of the line.
 	start := "\r" + ansi.bold()
 	end := ansi.regular() + ansi.clearToEndOfLine()
 	fmt.Fprint(s.writer, start, str, end)
@@ -425,15 +424,19 @@ func (s *smartStatusOutput) actionTable() {
 			}
 
 			color := ""
-			if seconds >= 60 {
-				color = ansi.red() + ansi.bold()
-			} else if seconds >= 30 {
-				color = ansi.yellow() + ansi.bold()
+			if s.formatter.colorize {
+				if seconds >= 60 {
+					color = ansi.redColor(s.formatter.trueColor) + ansi.bold()
+				} else if seconds >= 30 {
+					color = ansi.yellowColor(s.formatter.trueColor) + ansi.bold()
+				}
 			}
 
 			durationStr := fmt.Sprintf("   %2d:%02d ", seconds/60, seconds%60)
 			desc = elide(desc, s.termWidth-len(durationStr))
-			durationStr = color + durationStr + ansi.regular()
+			if color != "" {
+				durationStr = color + durationStr + ansi.regular()
+			}
 			fmt.Fprint(s.writer, durationStr, desc)
 		}
 		fmt.Fprint(s.writer, ansi.clearToEndOfLine())
@@ -466,8 +469,6 @@ func (ansiImpl) resetScrollingMargins() string {
 	return fmt.Sprintf("\x1b[r")
 }
 
-func (ansiImpl) red() string { return "\x1b[31m" }
-
 func (ansiImpl) redColor(trueColor bool) string {
 	if trueColor {
 		return "\x1b[38;2;201;87;87m"
@@ -482,11 +483,11 @@ func (ansiImpl) teal(trueColor bool) string {
 	return "\x1b[36m"
 }
 
-func (ansiImpl) green(trueColor bool) string {
+func (ansiImpl) blueViolet(trueColor bool) string {
 	if trueColor {
-		return "\x1b[38;2;69;169;120m"
+		return "\x1b[38;2;129;143;232m"
 	}
-	return "\x1b[32m"
+	return "\x1b[34m"
 }
 
 func (ansiImpl) yellowColor(trueColor bool) string {
@@ -494,15 +495,6 @@ func (ansiImpl) yellowColor(trueColor bool) string {
 		return "\x1b[38;2;201;150;50m"
 	}
 	return "\x1b[33m"
-}
-
-func (ansiImpl) yellow() string { return "\x1b[33m" }
-
-func (ansiImpl) blue(trueColor bool) string {
-	if trueColor {
-		return "\x1b[38;2;79;134;168m"
-	}
-	return "\x1b[34m"
 }
 
 func (ansiImpl) bold() string {

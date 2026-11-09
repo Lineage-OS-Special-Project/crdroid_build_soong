@@ -26,7 +26,7 @@ var testCases = []struct {
 }{
 	{
 		in:  "File.java:40: error: cannot find symbol\n",
-		out: "\x1b[1mFile.java:40: \x1b[31merror:\x1b[0m\x1b[1m cannot find symbol\x1b[0m\n",
+		out: "File.java:40: error: cannot find symbol\n",
 	},
 	{
 		in:  "import static com.blah.SYMBOL;\n",
@@ -34,15 +34,15 @@ var testCases = []struct {
 	},
 	{
 		in:  "          ^           \n",
-		out: "\x1b[1m          \x1b[32m^\x1b[0m\x1b[1m           \x1b[0m\n",
+		out: "          ^           \n",
 	},
 	{
 		in:  "File.java:398: warning: [RectIntersectReturnValueIgnored] Return value of com.blah.function() must be checked\n",
-		out: "\x1b[1mFile.java:398: \x1b[35mwarning:\x1b[0m\x1b[1m [RectIntersectReturnValueIgnored] Return value of com.blah.function() must be checked\x1b[0m\n",
+		out: "File.java:398: warning: [RectIntersectReturnValueIgnored] Return value of com.blah.function() must be checked\n",
 	},
 	{
 		in:  "warning: [options] blah\n",
-		out: "\x1b[1m\x1b[35mwarning:\x1b[0m\x1b[1m [options] blah\x1b[0m\n",
+		out: "warning: [options] blah\n",
 	},
 	{
 		in:  "    (see http://go/errorprone/bugpattern/RectIntersectReturnValueIgnored.md)\n",
@@ -88,7 +88,7 @@ warning: foo
 warning: [options] bootstrap class path not set in conjunction with -source 1.9\n
 2 warnings
 `,
-		out: "\n\x1b[1m\x1b[35mwarning:\x1b[0m\x1b[1m foo\x1b[0m\n1 warning\n",
+		out: "\nwarning: foo\n1 warning\n",
 	},
 	{
 		in: `
@@ -101,7 +101,7 @@ warning: [options] To suppress warnings about obsolete options, use -Xlint:-opti
 	},
 }
 
-func TestJavacColorize(t *testing.T) {
+func TestJavacOutputFiltering(t *testing.T) {
 	for i, test := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			buf := new(bytes.Buffer)
@@ -115,6 +115,20 @@ func TestJavacColorize(t *testing.T) {
 				t.Errorf("expected %q got %q", test.out, got)
 			}
 		})
+	}
+}
+
+func TestCapturedActionOutputStaysPlainForReplay(t *testing.T) {
+	t.Setenv("SOONG_UI_COLOR_MODE", "truecolor")
+	t.Setenv("COLORTERM", "truecolor")
+	var output bytes.Buffer
+	exitCode, err := Main(&output, "test", []string{"sh", "-c", "printf 'File.java:1: warning: captured\\n'"})
+	if err != nil || exitCode != 0 {
+		t.Fatalf("Main() = (%d, %v), want (0, nil)", exitCode, err)
+	}
+	want := "File.java:1: warning: captured\n"
+	if got := output.String(); got != want {
+		t.Fatalf("captured wrapper output = %q, want %q", got, want)
 	}
 }
 

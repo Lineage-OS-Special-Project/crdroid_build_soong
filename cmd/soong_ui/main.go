@@ -146,13 +146,13 @@ func main() {
 	}
 
 	// Create a terminal output that mimics Ninja's.
+	forceANSI := build.OsEnvironment().IsEnvTrue("SOONG_UI_ANSI_OUTPUT")
 	output := terminal.NewStatusOutput(c.stdio().Stdout(), os.Getenv("NINJA_STATUS"), c.simpleOutput,
 		build.OsEnvironment().IsEnvTrue("ANDROID_QUIET_BUILD"),
-		build.OsEnvironment().IsEnvTrue("SOONG_UI_ANSI_OUTPUT"),
+		forceANSI,
 		build.OsEnvironment().IsEnvTrue("SOONG_UI_SKIP_ACTION_PROGRESS"),
 		build.OsEnvironment().IsEnvTrue("SOONG_UI_SUPPRESS_OUTPUT"),
 	)
-
 	// Create and start a new metric record.
 	met := metrics.New()
 	met.SetBuildDateTime(buildStarted)
@@ -191,7 +191,7 @@ func main() {
 		ExecutionMetrics:  emet,
 		Tracer:            trace,
 		Writer:            output,
-		TerminalColorMode: terminal.CleanStatusColorFor(c.stdio().Stdout(), c.simpleOutput),
+		TerminalColorMode: terminal.CleanStatusColorFor(c.stdio().Stdout(), c.simpleOutput, forceANSI),
 		Status:            stat,
 		CriticalPath:      criticalPath,
 		SigNumFunc:        sigNumFunc,
