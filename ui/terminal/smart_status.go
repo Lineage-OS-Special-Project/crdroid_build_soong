@@ -281,13 +281,36 @@ func (s *smartStatusOutput) statusLine(str string) {
 }
 
 func elide(str string, width int) string {
-	if width > 0 && len(str) > width {
-		// TODO: Just do a max. Ninja elides the middle, but that's
-		// more complicated and these lines aren't that important.
-		str = str[:width]
+	if width <= 0 {
+		return str
 	}
 
-	return str
+	// ANSI control sequences do not occupy terminal columns. Count only
+	// printable bytes so colored status lines are elided at the same visible
+	// width as uncolored lines.
+	var b strings.Builder
+	visibleBytes := 0
+	for i := 0; i < len(str); {
+		if str[i] == '\x1b' && i+1 < len(str) && str[i+1] == '[' {
+			start := i
+			i += 2
+			for i < len(str) && (str[i] < 0x40 || str[i] > 0x7e) {
+				i++
+			}
+			if i < len(str) {
+				i++ // Include the CSI final byte.
+			}
+			b.WriteString(str[start:i])
+			continue
+		}
+		if visibleBytes >= width {
+			break
+		}
+		b.WriteByte(str[i])
+		i++
+		visibleBytes++
+	}
+	return b.String()
 }
 
 func (s *smartStatusOutput) startActionTableTick() {
