@@ -50,6 +50,7 @@ type smartStatusOutput struct {
 	termWidth, termHeight int
 
 	runningActions  []actionTableEntry
+	lastCounts      status.Counts
 	ticker          *time.Ticker
 	done            chan bool
 	sigwinch        chan os.Signal
@@ -156,8 +157,12 @@ func (s *smartStatusOutput) StartAction(action *status.Action, counts status.Cou
 		action:    action,
 		startTime: startTime,
 	})
+	s.lastCounts = counts
 
-	s.statusLine(progress + str)
+	if !s.tableMode {
+		progress += str
+	}
+	s.statusLine(progress)
 }
 
 func (s *smartStatusOutput) FinishAction(result status.ActionResult, counts status.Counts) {
@@ -179,6 +184,7 @@ func (s *smartStatusOutput) FinishAction(result status.ActionResult, counts stat
 			break
 		}
 	}
+	s.lastCounts = counts
 
 	s.statusLine(progress)
 
@@ -319,6 +325,7 @@ func (s *smartStatusOutput) startActionTableTick() {
 			select {
 			case <-s.ticker.C:
 				s.lock.Lock()
+				s.statusLine(s.formatter.progress(s.lastCounts))
 				s.actionTable()
 				s.lock.Unlock()
 			case <-s.done:

@@ -102,7 +102,7 @@ func (s formatter) progress(counts status.Counts) string {
 		b.WriteString(s.progressColor(ansi.yellowColor(s.trueColor)))
 		fmt.Fprintf(&b, "%.3f", time.Since(s.start).Seconds())
 		b.WriteString(s.progressColor(ansi.regular()))
-		b.WriteString("]                                          ")
+		b.WriteString("] ")
 		return b.String()
 	}
 	if s.format == "" {

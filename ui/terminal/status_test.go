@@ -249,6 +249,52 @@ func TestSmartProgressAndPhasePresentation(t *testing.T) {
 	}
 }
 
+func TestSmartStatusTableRefreshesProgressAndKeepsDescriptionInTable(t *testing.T) {
+	setTestColorEnv(t, "")
+	t.Setenv(tableHeightEnVar, "1")
+	term := &fakeSmartTerminal{termWidth: 58, termHeight: 4}
+	stat := NewStatusOutput(term, lospStatusFormat, false, false, false, false, false).(*smartStatusOutput)
+	action := &status.Action{Description: "a long-running action description"}
+	stat.StartAction(action, status.Counts{TotalActions: 10, RunningActions: 1})
+
+	initial := string(stripAnsiEscapes(append([]byte(nil), term.Bytes()...)))
+	if strings.Contains(initial, action.Description) {
+		t.Fatalf("active description duplicated on main line: %q", initial)
+	}
+
+	time.Sleep(1100 * time.Millisecond)
+	rawAfterTick := term.String()
+	afterTick := string(stripAnsiEscapes(append([]byte(nil), rawAfterTick...)))
+	if strings.Count(afterTick, action.Description) != 1 {
+		t.Fatalf("description should appear once in the table, output: %q", afterTick)
+	}
+	if strings.Count(afterTick, "Elapsed:") < 2 {
+		t.Fatalf("timer tick did not redraw overall progress: %q", afterTick)
+	}
+	elapsedValues := strings.Split(afterTick, "Elapsed: ")
+	if len(elapsedValues) < 3 {
+		t.Fatalf("missing elapsed values before and after tick: %q", afterTick)
+	}
+	var initialElapsed, refreshedElapsed float64
+	if _, err := fmt.Sscanf(elapsedValues[1], "%f", &initialElapsed); err != nil {
+		t.Fatalf("parse initial elapsed time: %v", err)
+	}
+	if _, err := fmt.Sscanf(elapsedValues[len(elapsedValues)-1], "%f", &refreshedElapsed); err != nil {
+		t.Fatalf("parse refreshed elapsed time: %v", err)
+	}
+	if refreshedElapsed <= initialElapsed {
+		t.Fatalf("elapsed time did not advance: initial %.3f, refreshed %.3f", initialElapsed, refreshedElapsed)
+	}
+	if !strings.Contains(afterTick, "0:01") {
+		t.Fatalf("action timer missing from table redraw: %q", afterTick)
+	}
+	if !strings.Contains(rawAfterTick, "\x1b[K") {
+		t.Fatal("redraw did not clear the remainder of its rows")
+	}
+
+	stat.Flush()
+}
+
 func TestNoColorDisablesSmartStatusStyling(t *testing.T) {
 	setTestColorEnv(t, "")
 	term := &fakeSmartTerminal{termWidth: 80, termHeight: 2}
