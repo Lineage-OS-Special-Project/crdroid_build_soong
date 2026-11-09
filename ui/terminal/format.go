@@ -16,6 +16,7 @@ package terminal
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,15 +24,22 @@ import (
 )
 
 type formatter struct {
-	colorize      bool
-	phaseColorize bool
-	trueColor     bool
-	format        string
-	quiet         bool
-	start         time.Time
+	colorize            bool
+	phaseColorize       bool
+	trueColor           bool
+	diagnosticColorize  bool
+	diagnosticTrueColor bool
+	format              string
+	quiet               bool
+	start               time.Time
 }
 
 const lospStatusFormat = "__LOSP_NINJA_STATUS_V1__"
+
+var (
+	javacWarningRe = regexp.MustCompile(`^([-.\w/\\]+\.java:[0-9]+: )?(warning:) .*$`)
+	javacErrorRe   = regexp.MustCompile(`^([-.\w/\\]+\.java:[0-9]+: )?(error:) .*$`)
+)
 
 // newFormatter returns a formatter for formatting output to
 // the terminal in a format similar to Ninja.
@@ -62,10 +70,7 @@ func (s formatter) phaseStatus(phase status.BuildPhase, description string) stri
 	if !s.phaseColorize {
 		return marker + " " + description
 	}
-	// Standard cyan is the closest existing semantic color. Keep the reset
-	// between the marker and description, then restore the status line's bold
-	// style so only the marker changes foreground color.
-	return ansi.teal(s.trueColor) + marker + ansi.regular() + ansi.bold() + " " + description
+	return ansi.blueViolet(s.trueColor) + marker + ansi.regular() + ansi.bold() + " " + description
 }
 
 func remainingTimeString(t time.Time) string {
@@ -76,10 +81,13 @@ func remainingTimeString(t time.Time) string {
 	return time.Duration(0).Round(time.Duration(time.Second)).String()
 }
 func (s formatter) progress(counts status.Counts) string {
+	if s.format == lospStatusFormat && counts.TotalActions == 0 {
+		counts.TotalActions = 1
+	}
 	if s.format == lospStatusFormat {
 		var b strings.Builder
 		b.WriteString("[")
-		b.WriteString(s.progressColor(ansi.green(s.trueColor)))
+		b.WriteString(s.progressColor(ansi.teal(s.trueColor)))
 		fmt.Fprintf(&b, "%d", counts.FinishedActions)
 		b.WriteString(s.progressColor(ansi.regular()))
 		b.WriteString("/")
@@ -87,7 +95,7 @@ func (s formatter) progress(counts status.Counts) string {
 		fmt.Fprintf(&b, "%d", counts.TotalActions)
 		b.WriteString(s.progressColor(ansi.regular()))
 		b.WriteString(" (")
-		b.WriteString(s.progressColor(ansi.blue(s.trueColor)))
+		b.WriteString(s.progressColor(ansi.blueViolet(s.trueColor)))
 		fmt.Fprintf(&b, "%3d%%", 100*counts.FinishedActions/counts.TotalActions)
 		b.WriteString(s.progressColor(ansi.regular()))
 		b.WriteString(") Elapsed: ")
@@ -168,16 +176,21 @@ func (s formatter) progressColor(color string) string {
 }
 
 func (s formatter) result(result status.ActionResult) string {
+	output := result.Output
+	if s.diagnosticColorize && strings.Contains(result.Command, "soong_javac_wrapper") {
+		output = colorJavacDiagnostics(output, s.diagnosticTrueColor)
+	}
+
 	var ret string
 	if result.Error != nil {
 		targets := strings.Join(result.Outputs, " ")
 		if s.quiet || result.Command == "" {
-			ret = fmt.Sprintf("%s %s\n%s", s.failedString(), targets, result.Output)
+			ret = fmt.Sprintf("%s %s\n%s", s.failedString(), targets, output)
 		} else {
-			ret = fmt.Sprintf("%s %s\n%s\n%s", s.failedString(), targets, result.Command, result.Output)
+			ret = fmt.Sprintf("%s %s\n%s\n%s", s.failedString(), targets, result.Command, output)
 		}
-	} else if result.Output != "" {
-		ret = result.Output
+	} else if output != "" {
+		ret = output
 	}
 
 	if len(ret) > 0 && ret[len(ret)-1] != '\n' {
@@ -185,6 +198,33 @@ func (s formatter) result(result status.ActionResult) string {
 	}
 
 	return ret
+}
+
+func colorJavacDiagnostics(output string, trueColor bool) string {
+	lines := strings.SplitAfter(output, "\n")
+	for i, line := range lines {
+		ending := ""
+		if strings.HasSuffix(line, "\n") {
+			line, ending = strings.TrimSuffix(line, "\n"), "\n"
+		}
+		for _, diagnostic := range []struct {
+			pattern *regexp.Regexp
+			color   string
+		}{
+			{javacWarningRe, ansi.yellowColor(trueColor)},
+			{javacErrorRe, ansi.redColor(trueColor)},
+		} {
+			match := diagnostic.pattern.FindStringSubmatchIndex(line)
+			if match == nil {
+				continue
+			}
+			start, end := match[4], match[5]
+			line = line[:start] + ansi.bold() + diagnostic.color + line[start:end] + ansi.regular() + line[end:]
+			break
+		}
+		lines[i] = line + ending
+	}
+	return strings.Join(lines, "")
 }
 
 func (s formatter) failedString() string {

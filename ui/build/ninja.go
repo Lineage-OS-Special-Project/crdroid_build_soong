@@ -350,7 +350,6 @@ func runNinja(ctx Context, config Config, ninjaArgs []string) {
 			"SISO_LIMITS",
 		}, config.BuildBrokenNinjaUsesEnvVars()...)...)
 	}
-
 	cmd.Environment.Set("DIST_DIR", config.DistDir())
 	cmd.Environment.Set("SHELL", "/bin/bash")
 	switch config.ninjaCommand {
