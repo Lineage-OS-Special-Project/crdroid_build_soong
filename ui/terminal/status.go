@@ -32,12 +32,12 @@ func NewStatusOutput(w io.Writer, statusFormat string, forceSimpleOutput, quietB
 
 	canUseSmartFormatting := !forceSimpleOutput && isSmartTerminal(w)
 	formatter := newFormatter(canUseSmartFormatting, statusFormat, quietBuild)
-	_, noColor := os.LookupEnv("NO_COLOR")
-	formatter.colorize = canUseSmartFormatting && !noColor
+	colorMode := ColorMode(w, forceSimpleOutput, forceKeepANSI)
+	formatter.colorize = colorMode != "none" && (canUseSmartFormatting || forceKeepANSI)
 	formatter.phaseColorize = formatter.colorize
-	if colorTerm, ok := os.LookupEnv("COLORTERM"); ok && !noColor && (colorTerm == "truecolor" || colorTerm == "24bit") {
-		formatter.trueColor = canUseSmartFormatting
-	}
+	formatter.trueColor = formatter.colorize && colorMode == "truecolor"
+	formatter.diagnosticColorize = colorMode != "none"
+	formatter.diagnosticTrueColor = colorMode == "truecolor"
 
 	if canUseSmartFormatting {
 		return NewSmartStatusOutput(w, formatter, suppressOutput)
@@ -45,4 +45,23 @@ func NewStatusOutput(w io.Writer, statusFormat string, forceSimpleOutput, quietB
 		return NewSimpleStatusOutput(w, formatter, forceKeepANSI, skipActionProgress,
 			suppressOutput)
 	}
+}
+
+// ColorMode reports the color policy for build actions whose output is captured
+// before it is replayed through the terminal status writer. The returned mode
+// is deliberately a single, explicit value for that output pipeline.
+func ColorMode(w io.Writer, forceSimpleOutput, forceANSI bool) string {
+	if _, noColor := os.LookupEnv("NO_COLOR"); noColor {
+		return "none"
+	}
+	if term, ok := os.LookupEnv("TERM"); ok && term == "dumb" {
+		return "none"
+	}
+	if !forceANSI && (forceSimpleOutput || !isSmartTerminal(w)) {
+		return "none"
+	}
+	if colorTerm, ok := os.LookupEnv("COLORTERM"); ok && (colorTerm == "truecolor" || colorTerm == "24bit") {
+		return "truecolor"
+	}
+	return "ansi"
 }

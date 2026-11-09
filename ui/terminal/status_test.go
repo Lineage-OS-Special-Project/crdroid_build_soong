@@ -17,6 +17,7 @@ package terminal
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"syscall"
@@ -28,23 +29,22 @@ import (
 
 func TestPhaseStatusColorPolicy(t *testing.T) {
 	const description = "Blueprint bootstrap and graph analysis"
-	unsetTestEnv(t, "NO_COLOR")
+	setTestColorEnv(t, "")
 
-	t.Run("smart terminal uses cyan marker only", func(t *testing.T) {
-		unsetTestEnv(t, "NO_COLOR")
-		t.Setenv("TERM", "xterm-256color")
+	t.Run("smart terminal colors marker and bolds description", func(t *testing.T) {
+		setTestColorEnv(t, "")
 		smart := &fakeSmartTerminal{termWidth: 100}
 		statusOutput := NewStatusOutput(smart, "", false, false, false, false, false)
 		statusOutput.(*smartStatusOutput).PhaseStatus(status.SoongPhase, description)
 		statusOutput.Flush()
 
 		got := smart.String()
-		want := "\x1b[36m[Soong]\x1b[0m\x1b[1m " + description
+		want := "\x1b[34m[Soong]\x1b[0m\x1b[1m " + description
 		if !strings.Contains(got, want) {
 			t.Fatalf("smart status does not contain colored phase marker %q: %q", want, got)
 		}
-		if strings.Count(got, "\x1b[36m") != 1 {
-			t.Fatalf("expected only one cyan sequence around marker, got %q", got)
+		if strings.Count(got, "\x1b[34m") != 1 || strings.Count(got, "\x1b[1m") != 2 {
+			t.Fatalf("expected one blue-violet and one bold sequence, got %q", got)
 		}
 		if plain := string(stripAnsiEscapes([]byte(got))); !strings.Contains(plain, "[Soong] "+description) {
 			t.Fatalf("plain rendering = %q", plain)
@@ -52,8 +52,8 @@ func TestPhaseStatusColorPolicy(t *testing.T) {
 	})
 
 	t.Run("NO_COLOR disables phase color", func(t *testing.T) {
+		setTestColorEnv(t, "")
 		t.Setenv("NO_COLOR", "1")
-		t.Setenv("TERM", "xterm-256color")
 		smart := &fakeSmartTerminal{termWidth: 100}
 		statusOutput := NewStatusOutput(smart, "", false, false, false, false, false)
 		statusOutput.(*smartStatusOutput).PhaseStatus(status.KatiPhase, "Makefile and packaging generation")
@@ -69,7 +69,7 @@ func TestPhaseStatusColorPolicy(t *testing.T) {
 	})
 
 	t.Run("redirected output is plain", func(t *testing.T) {
-		unsetTestEnv(t, "NO_COLOR")
+		setTestColorEnv(t, "")
 		var redirected bytes.Buffer
 		statusOutput := NewStatusOutput(&redirected, "", false, false, false, false, false)
 		statusOutput.(*simpleStatusOutput).PhaseStatus(status.NinjaPhase, "Starting Ninja/Siso execution")
@@ -82,20 +82,20 @@ func TestPhaseStatusColorPolicy(t *testing.T) {
 }
 
 func TestLOSPColorPolicy(t *testing.T) {
+	setTestColorEnv(t, "")
 	tests := []struct {
 		name, colorTerm, noColor, term string
 		color, failure                 string
 	}{
-		{"truecolor", "truecolor", "", "xterm", "38;2;16;200;200m", "38;2;201;87;87m"},
-		{"24bit", "24bit", "", "xterm", "38;2;16;200;200m", "38;2;201;87;87m"},
-		{"ansi", "", "", "xterm", "36m", "31m"},
+		{"truecolor", "truecolor", "", "xterm", "38;2;129;143;232m", "38;2;201;87;87m"},
+		{"24bit", "24bit", "", "xterm", "38;2;129;143;232m", "38;2;201;87;87m"},
+		{"ansi", "", "", "xterm", "34m", "31m"},
 		{"no color", "truecolor", "1", "xterm", "", ""},
 		{"dumb", "truecolor", "", "dumb", "", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			unsetTestEnv(t, "NO_COLOR")
-			unsetTestEnv(t, "COLORTERM")
+			setTestColorEnv(t, tt.colorTerm)
 			if tt.noColor != "" {
 				t.Setenv("NO_COLOR", tt.noColor)
 			}
@@ -136,22 +136,224 @@ func TestLOSPColorPolicy(t *testing.T) {
 }
 
 func TestLOSPProgressFormat(t *testing.T) {
+	setTestColorEnv(t, "truecolor")
 	t.Setenv("COLORTERM", "truecolor")
 	f := newFormatter(true, lospStatusFormat, false)
 	f.colorize, f.trueColor = true, true
 	f.start = time.Now().Add(-time.Second)
 	got := f.progress(status.Counts{FinishedActions: 3, TotalActions: 10})
-	for _, sequence := range []string{"38;2;69;169;120m", "38;2;16;200;200m", "38;2;79;134;168m", "38;2;201;150;50m"} {
+	for _, sequence := range []string{"38;2;16;200;200m", "38;2;129;143;232m", "38;2;201;150;50m"} {
 		if !strings.Contains(got, sequence) {
 			t.Errorf("progress missing %q: %q", sequence, got)
 		}
 	}
+	if strings.Contains(got, "38;2;69;169;120m") || strings.Contains(got, "38;2;79;134;168m") {
+		t.Fatalf("progress contains retired green/blue styling: %q", got)
+	}
 	if strings.Contains(got, `\033`) || !strings.Contains(got, "%") {
 		t.Fatalf("invalid progress rendering: %q", got)
+	}
+	zero := f.progress(status.Counts{})
+	zeroPlain := string(stripAnsiEscapes([]byte(zero)))
+	if !strings.Contains(zeroPlain, "0/1") || !strings.Contains(zeroPlain, "  0%") {
+		t.Fatalf("zero-action progress = %q", zero)
 	}
 	plain := newFormatter(false, lospStatusFormat, false).progress(status.Counts{FinishedActions: 3, TotalActions: 10})
 	if strings.Contains(plain, "\x1b") {
 		t.Fatalf("plain progress contains ANSI: %q", plain)
+	}
+}
+
+func TestLOSPStatusThroughBuildEntryFormat(t *testing.T) {
+	setTestColorEnv(t, "truecolor")
+	t.Setenv("NINJA_STATUS", lospStatusFormat)
+
+	output := &fakeSmartTerminal{termWidth: 200, termHeight: 3}
+	statusOutput := NewStatusOutput(output, os.Getenv("NINJA_STATUS"), false, false, false, false, false)
+	statusOutput.FinishAction(status.ActionResult{Action: &status.Action{Description: "compile module"}},
+		status.Counts{FinishedActions: 3, TotalActions: 10})
+
+	got := output.String()
+	plain := string(stripAnsiEscapes([]byte(got)))
+	if !strings.Contains(plain, "3/10 ( 30%) Elapsed:") {
+		t.Fatalf("entry formatter omitted elapsed time: %q", got)
+	}
+	if !strings.Contains(got, "38;2;201;150;50m") {
+		t.Fatalf("entry formatter omitted amber elapsed styling: %q", got)
+	}
+}
+
+func TestSmartProgressAndPhasePresentation(t *testing.T) {
+	setTestColorEnv(t, "truecolor")
+	term := &fakeSmartTerminal{termWidth: 200, termHeight: 3}
+	stat := NewStatusOutput(term, lospStatusFormat, false, false, false, false, false)
+	stat.(interface {
+		PhaseStatus(status.BuildPhase, string)
+	}).PhaseStatus(status.SoongPhase, "Blueprint bootstrap and graph analysis")
+	stat.StartAction(&status.Action{Description: "compile module"}, status.Counts{TotalActions: 10})
+	stat.FinishAction(status.ActionResult{Action: &status.Action{Description: "compile module"}}, status.Counts{FinishedActions: 3, TotalActions: 10})
+	stat.Flush()
+	got := term.String()
+	plain := string(stripAnsiEscapes([]byte(got)))
+	for _, want := range []string{"[Soong] Blueprint bootstrap and graph analysis", "3/10 ( 30%) Elapsed:", "compile module"} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("smart fixture missing %q in %q", want, plain)
+		}
+	}
+	for _, sgr := range []string{"38;2;129;143;232m", "38;2;16;200;200m", "38;2;201;150;50m", "\\x1b[1m"} {
+		sequence := sgr
+		if sequence == "\\x1b[1m" {
+			sequence = "\x1b[1m"
+		}
+		if !strings.Contains(got, sequence) {
+			t.Fatalf("smart fixture missing %q in %q", sequence, got)
+		}
+	}
+}
+
+func TestNoColorDisablesSmartStatusStyling(t *testing.T) {
+	setTestColorEnv(t, "")
+	term := &fakeSmartTerminal{termWidth: 80, termHeight: 2}
+	f := newFormatter(true, lospStatusFormat, false)
+	f.colorize = false
+	s := &smartStatusOutput{
+		writer:      term,
+		formatter:   f,
+		termWidth:   80,
+		termHeight:  2,
+		tableHeight: 1,
+		runningActions: []actionTableEntry{{
+			action:    &status.Action{Description: "long action"},
+			startTime: time.Now().Add(-40 * time.Second),
+		}},
+	}
+	s.statusLine(f.progress(status.Counts{FinishedActions: 1, TotalActions: 2}) + " regular action")
+	s.actionTable()
+	got := term.String()
+	for _, sgr := range []string{"\x1b[31m", "\x1b[33m", "38;2;"} {
+		if strings.Contains(got, sgr) {
+			t.Fatalf("NO_COLOR status contains SGR %q: %q", sgr, got)
+		}
+	}
+}
+
+func TestColorModeUsesStatusOutputPolicy(t *testing.T) {
+	setTestColorEnv(t, "")
+	tests := []struct {
+		name, term, colorTerm, noColor string
+		forceSimple, forceANSI         bool
+		writerTTY                      bool
+		want                           string
+	}{
+		{"interactive truecolor", "xterm-256color", "truecolor", "", false, false, true, "truecolor"},
+		{"interactive ANSI fallback", "xterm-256color", "", "", false, false, true, "ansi"},
+		{"redirected", "xterm-256color", "truecolor", "", false, false, false, "none"},
+		{"simple output", "xterm-256color", "truecolor", "", true, false, true, "none"},
+		{"explicit ANSI output", "xterm-256color", "", "", false, true, false, "ansi"},
+		{"NO_COLOR wins", "xterm-256color", "truecolor", "1", false, true, true, "none"},
+		{"dumb wins", "dumb", "truecolor", "", false, true, true, "none"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setTestColorEnv(t, tt.colorTerm)
+			if tt.noColor != "" {
+				t.Setenv("NO_COLOR", tt.noColor)
+			}
+			if tt.colorTerm != "" {
+				t.Setenv("COLORTERM", tt.colorTerm)
+			}
+			if tt.term != "" {
+				t.Setenv("TERM", tt.term)
+			}
+			var writer io.Writer = &bytes.Buffer{}
+			if tt.writerTTY {
+				writer = &fakeSmartTerminal{termWidth: 80}
+			}
+			if got := ColorMode(writer, tt.forceSimple, tt.forceANSI); got != tt.want {
+				t.Fatalf("ColorMode() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestJavacDiagnosticsAreStyledAtReplay(t *testing.T) {
+	setTestColorEnv(t, "")
+	const command = "out/soong/host/linux-x86/bin/soong_javac_wrapper javac"
+	output := "File.java:7: warning: warn details\n     ^\nFile.java:8: error: missing symbol\n    ^\n"
+	result := status.ActionResult{
+		Action: &status.Action{Command: command},
+		Output: output,
+	}
+
+	trueColor := newFormatter(true, "", false)
+	trueColor.diagnosticColorize = true
+	trueColor.diagnosticTrueColor = true
+	wantTrueColor := "File.java:7: \x1b[1m\x1b[38;2;201;150;50mwarning:\x1b[0m warn details\n     ^\n" +
+		"File.java:8: \x1b[1m\x1b[38;2;201;87;87merror:\x1b[0m missing symbol\n    ^\n"
+	if got := trueColor.result(result); got != wantTrueColor {
+		t.Fatalf("true-color javac output = %q, want %q", got, wantTrueColor)
+	}
+
+	ansi := newFormatter(true, "", false)
+	ansi.diagnosticColorize = true
+	wantANSI := "File.java:7: \x1b[1m\x1b[33mwarning:\x1b[0m warn details\n     ^\n" +
+		"File.java:8: \x1b[1m\x1b[31merror:\x1b[0m missing symbol\n    ^\n"
+	if got := ansi.result(result); got != wantANSI {
+		t.Fatalf("ANSI javac output = %q, want %q", got, wantANSI)
+	}
+
+	plain := newFormatter(false, "", false)
+	if got := plain.result(result); got != output {
+		t.Fatalf("plain javac output = %q, want %q", got, output)
+	}
+
+	// Similar compiler output stays untouched; this styling applies only to
+	// action results whose recorded command invokes the javac wrapper.
+	external := status.ActionResult{
+		Action: &status.Action{Command: "clang++ -c test.cpp"},
+		Output: "test.cpp:7: warning: compiler detail\n",
+	}
+	if got := trueColor.result(external); got != external.Output {
+		t.Fatalf("external compiler output changed: %q", got)
+	}
+}
+
+func TestJavacReplayHonorsTerminalPolicy(t *testing.T) {
+	for _, tt := range []struct {
+		name, term, colorTerm, noColor string
+		forceANSI                      bool
+		wantANSI                       bool
+	}{
+		{"redirected plain", "xterm-256color", "truecolor", "", false, false},
+		{"explicit truecolor", "xterm-256color", "truecolor", "", true, true},
+		{"explicit ANSI fallback", "xterm-256color", "", "", true, true},
+		{"NO_COLOR overrides explicit", "xterm-256color", "truecolor", "1", true, false},
+		{"TERM dumb overrides explicit", "dumb", "truecolor", "", true, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			setTestColorEnv(t, tt.colorTerm)
+			t.Setenv("TERM", tt.term)
+			if tt.colorTerm != "" {
+				t.Setenv("COLORTERM", tt.colorTerm)
+			}
+			if tt.noColor != "" {
+				t.Setenv("NO_COLOR", tt.noColor)
+			}
+			var out bytes.Buffer
+			stat := NewStatusOutput(&out, "", false, false, tt.forceANSI, false, false)
+			stat.FinishAction(status.ActionResult{
+				Action: &status.Action{Command: "soong_javac_wrapper javac", Description: "compile"},
+				Output: "File.java:7: warning: detail\n",
+			}, status.Counts{FinishedActions: 1, TotalActions: 1})
+			stat.Flush()
+			got := out.String()
+			if strings.Contains(got, "\x1b[") != tt.wantANSI {
+				t.Fatalf("output ANSI presence = %v, want %v: %q", strings.Contains(got, "\x1b["), tt.wantANSI, got)
+			}
+			if strings.Contains(got, "\x1b[") && !strings.Contains(got, "warning:") {
+				t.Fatalf("colored diagnostic lost its label: %q", got)
+			}
+		})
 	}
 }
 
@@ -170,9 +372,20 @@ func unsetTestEnv(t *testing.T, key string) {
 	})
 }
 
-func TestStatusOutput(t *testing.T) {
+func setTestColorEnv(t *testing.T, colorTerm string) {
+	t.Helper()
 	unsetTestEnv(t, "NO_COLOR")
+	unsetTestEnv(t, "SOONG_UI_ANSI_OUTPUT")
 	t.Setenv("TERM", "xterm-256color")
+	if colorTerm == "" {
+		unsetTestEnv(t, "COLORTERM")
+	} else {
+		t.Setenv("COLORTERM", colorTerm)
+	}
+}
+
+func TestStatusOutput(t *testing.T) {
+	setTestColorEnv(t, "")
 	tests := []struct {
 		name   string
 		calls  func(stat status.StatusOutput)
@@ -493,7 +706,7 @@ func TestSuppressOutputAndSkipActionProgress(t *testing.T) {
 }
 
 func TestSmartStatusOutputWidthChange(t *testing.T) {
-	t.Setenv("TERM", "xterm-256color")
+	setTestColorEnv(t, "")
 	os.Setenv(tableHeightEnVar, "")
 
 	smart := &fakeSmartTerminal{termWidth: 40}
@@ -523,7 +736,7 @@ func TestSmartStatusOutputWidthChange(t *testing.T) {
 }
 
 func TestSmartStatusDoesntHideAfterSucecss(t *testing.T) {
-	t.Setenv("TERM", "xterm-256color")
+	setTestColorEnv(t, "")
 	os.Setenv(tableHeightEnVar, "")
 
 	smart := &fakeSmartTerminal{termWidth: 40}
@@ -560,8 +773,7 @@ func TestSmartStatusDoesntHideAfterSucecss(t *testing.T) {
 }
 
 func TestSmartStatusHideAfterFailure(t *testing.T) {
-	unsetTestEnv(t, "NO_COLOR")
-	t.Setenv("TERM", "xterm-256color")
+	setTestColorEnv(t, "")
 	os.Setenv(tableHeightEnVar, "")
 
 	smart := &fakeSmartTerminal{termWidth: 40}
@@ -599,8 +811,7 @@ func TestSmartStatusHideAfterFailure(t *testing.T) {
 }
 
 func TestSmartStatusHideAfterFailurePlural(t *testing.T) {
-	unsetTestEnv(t, "NO_COLOR")
-	t.Setenv("TERM", "xterm-256color")
+	setTestColorEnv(t, "")
 	os.Setenv(tableHeightEnVar, "")
 
 	smart := &fakeSmartTerminal{termWidth: 40}
@@ -646,8 +857,7 @@ func TestSmartStatusHideAfterFailurePlural(t *testing.T) {
 }
 
 func TestSmartStatusDontHideErrorAfterFailure(t *testing.T) {
-	unsetTestEnv(t, "NO_COLOR")
-	t.Setenv("TERM", "xterm-256color")
+	setTestColorEnv(t, "")
 	os.Setenv(tableHeightEnVar, "")
 
 	smart := &fakeSmartTerminal{termWidth: 40}
@@ -686,8 +896,7 @@ func TestSmartStatusDontHideErrorAfterFailure(t *testing.T) {
 }
 
 func TestSmartStatusSuppressOutput(t *testing.T) {
-	unsetTestEnv(t, "NO_COLOR")
-	t.Setenv("TERM", "xterm-256color")
+	setTestColorEnv(t, "")
 	os.Setenv(tableHeightEnVar, "")
 
 	smart := &fakeSmartTerminal{termWidth: 40}
