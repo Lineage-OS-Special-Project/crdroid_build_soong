@@ -271,10 +271,19 @@ func (n *NinjaReader) run() {
 			}
 		}
 		if msg.Message != nil {
-			message := "ninja: " + msg.Message.GetMessage()
+			payload := msg.Message.GetMessage()
+			// Siso can send an empty INFO record before a multi-line startup
+			// message. Don't turn that empty record into a visible "ninja:" line.
+			if msg.Message.GetLevel() == ninja_frontend.Status_Message_INFO && payload == "" {
+				continue
+			}
+			message := "ninja: " + payload
 			switch msg.Message.GetLevel() {
 			case ninja_frontend.Status_Message_INFO:
-				n.status.Status(message)
+				// Ninja messages are complete, durable output. Status messages are
+				// rendered on the replaceable live progress row by smart terminals,
+				// where a subsequent redraw can erase them.
+				n.status.Print(message)
 			case ninja_frontend.Status_Message_WARNING:
 				n.status.Print("warning: " + message)
 			case ninja_frontend.Status_Message_ERROR:

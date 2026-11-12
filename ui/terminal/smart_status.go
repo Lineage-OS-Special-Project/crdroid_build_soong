@@ -141,11 +141,6 @@ func (s *smartStatusOutput) PhaseStatus(phase status.BuildPhase, description str
 func (s *smartStatusOutput) StartAction(action *status.Action, counts status.Counts) {
 	startTime := time.Now()
 
-	str := action.Description
-	if str == "" {
-		str = action.Command
-	}
-
 	progress := s.formatter.progress(counts)
 
 	s.lock.Lock()
@@ -158,6 +153,10 @@ func (s *smartStatusOutput) StartAction(action *status.Action, counts status.Cou
 	s.lastCounts = counts
 
 	if !s.tableMode {
+		str := action.Description
+		if str == "" {
+			str = action.Command
+		}
 		progress += str
 	}
 	s.statusLine(progress)
@@ -169,7 +168,10 @@ func (s *smartStatusOutput) FinishAction(result status.ActionResult, counts stat
 		str = result.Command
 	}
 
-	progress := s.formatter.progress(counts) + str
+	progress := s.formatter.progress(counts)
+	if !s.tableMode {
+		progress += str
+	}
 
 	output := s.formatter.result(result)
 
@@ -184,13 +186,26 @@ func (s *smartStatusOutput) FinishAction(result status.ActionResult, counts stat
 	}
 	s.lastCounts = counts
 
-	s.statusLine(progress)
+	if s.tableMode && output != "" && ((!s.haveFailures && !s.suppressOutput) || result.Error != nil) {
+		// The live progress row is useful only while the action table is active.
+		// Clear it before printing a completed action's diagnostics, and keep the
+		// action context as a heading separate from the captured output.
+		s.clearStatusLine()
+		s.requestLine()
+		s.print(str)
+		s.print(output)
+		s.statusLine(s.formatter.progress(counts))
+	} else {
+		s.statusLine(progress)
+	}
 
 	// Stop printing when there are failures, but don't skip actions that also have their own errors.
 	if output != "" {
 		if (!s.haveFailures && !s.suppressOutput) || result.Error != nil {
-			s.requestLine()
-			s.print(output)
+			if !s.tableMode {
+				s.requestLine()
+				s.print(output)
+			}
 		} else {
 			s.postFailureActionCount++
 		}
@@ -282,6 +297,13 @@ func (s *smartStatusOutput) statusLine(str string) {
 	end := ansi.regular() + ansi.clearToEndOfLine()
 	fmt.Fprint(s.writer, start, str, end)
 	s.haveBlankLine = false
+}
+
+func (s *smartStatusOutput) clearStatusLine() {
+	if !s.haveBlankLine {
+		fmt.Fprint(s.writer, "\r", ansi.clearToEndOfLine(), "\n")
+		s.haveBlankLine = true
+	}
 }
 
 func elide(str string, width int) string {

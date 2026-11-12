@@ -183,6 +183,69 @@ func TestLOSPStatusThroughBuildEntryFormat(t *testing.T) {
 	}
 }
 
+func TestSmartDiagnosticsKeepProgressRowSeparate(t *testing.T) {
+	setTestColorEnv(t, "")
+	t.Setenv(tableHeightEnVar, "1")
+	term := &fakeSmartTerminal{termWidth: 34, termHeight: 8}
+	formatter := newFormatter(false, lospStatusFormat, false)
+	stat := NewSmartStatusOutput(term, formatter, false).(*smartStatusOutput)
+
+	action1 := &status.Action{Description: "clang compile module"}
+	action2 := &status.Action{Description: "aidl generate interface", Outputs: []string{"out.h"}, Command: "aidl --lang=cpp input.aidl"}
+	stat.StartAction(action1, status.Counts{TotalActions: 2})
+	stat.FinishAction(status.ActionResult{Action: action1, Output: "warning: first diagnostic\n"}, status.Counts{FinishedActions: 1, TotalActions: 2})
+	stat.StartAction(action2, status.Counts{FinishedActions: 1, TotalActions: 2})
+	stat.FinishAction(status.ActionResult{Action: action2, Output: "error: second diagnostic\n", Error: fmt.Errorf("failed")}, status.Counts{FinishedActions: 2, TotalActions: 2})
+	stat.Flush()
+
+	got := term.String()
+	plain := string(stripAnsiEscapes([]byte(got)))
+	for _, want := range []string{"clang compile module\nwarning: first diagnostic\n", "aidl generate interface\nFAILED: out.h\naidl --lang=cpp input.aidl\nerror: second diagnostic\n", "2/2 (100%) Elapsed:"} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("output missing %q: %q", want, plain)
+		}
+	}
+	if strings.Contains(plain, "diagnostic\n\n") {
+		t.Fatalf("diagnostic blocks contain an extra blank row: %q", plain)
+	}
+	if strings.Contains(plain, "Elapsed:") && strings.Contains(plain[strings.LastIndex(plain, "Elapsed:"):], "clang") {
+		t.Fatalf("live progress row contains an action description: %q", plain)
+	}
+}
+
+func TestSmartActionEventsKeepLiveRowCountsOnly(t *testing.T) {
+	setTestColorEnv(t, "")
+	t.Setenv(tableHeightEnVar, "1")
+	term := &fakeSmartTerminal{termWidth: 120, termHeight: 8}
+	stat := NewSmartStatusOutput(term, newFormatter(false, lospStatusFormat, false), false).(*smartStatusOutput)
+
+	action := &status.Action{Description: "compile module"}
+	stat.StartAction(action, status.Counts{TotalActions: 10, RunningActions: 1})
+	assertLiveRowCountsOnly(t, term.String(), action.Description)
+
+	stat.FinishAction(status.ActionResult{Action: action}, status.Counts{TotalActions: 10, FinishedActions: 1})
+	assertLiveRowCountsOnly(t, term.String(), action.Description)
+	stat.Flush()
+}
+
+func assertLiveRowCountsOnly(t *testing.T, raw, description string) {
+	t.Helper()
+	plain := string(stripAnsiEscapes([]byte(raw)))
+	if !strings.Contains(plain, "Elapsed:") {
+		t.Fatalf("event did not write progress row immediately: %q", plain)
+	}
+	lastRowStart := strings.LastIndex(plain, "\r")
+	if lastRowStart < 0 {
+		lastRowStart = strings.LastIndex(plain, "Elapsed:")
+	} else {
+		lastRowStart++
+	}
+	row := plain[lastRowStart:]
+	if !strings.Contains(row, "Elapsed:") || strings.Contains(row, description) {
+		t.Fatalf("live row contains action description before timer redraw: %q", plain)
+	}
+}
+
 func TestSmartProgressAndPhasePresentation(t *testing.T) {
 	setTestColorEnv(t, "truecolor")
 	term := &fakeSmartTerminal{termWidth: 200, termHeight: 3}
@@ -190,8 +253,9 @@ func TestSmartProgressAndPhasePresentation(t *testing.T) {
 	stat.(interface {
 		PhaseStatus(status.BuildPhase, string)
 	}).PhaseStatus(status.SoongPhase, "Blueprint bootstrap and graph analysis")
-	stat.StartAction(&status.Action{Description: "compile module"}, status.Counts{TotalActions: 10})
-	stat.FinishAction(status.ActionResult{Action: &status.Action{Description: "compile module"}}, status.Counts{FinishedActions: 3, TotalActions: 10})
+	action := &status.Action{Description: "compile module"}
+	stat.StartAction(action, status.Counts{TotalActions: 10})
+	stat.FinishAction(status.ActionResult{Action: action, Output: "compile diagnostic\n"}, status.Counts{FinishedActions: 3, TotalActions: 10})
 	stat.Flush()
 	got := term.String()
 	plain := string(stripAnsiEscapes([]byte(got)))
