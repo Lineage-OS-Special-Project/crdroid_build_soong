@@ -46,6 +46,7 @@ type smartStatusOutput struct {
 
 	tableMode             bool
 	tableHeight           int
+	tableRowsDrawn        int
 	requestedTableHeight  int
 	termWidth, termHeight int
 
@@ -59,6 +60,8 @@ type smartStatusOutput struct {
 	// Once there is a failure, we stop printing command output so the error
 	// is easier to find
 	haveFailures bool
+	tableStarted bool
+	flushing     bool
 	// If we are dropping errors, then at the end, we report a message to go
 	// look in the verbose log if you want that command output.
 	postFailureActionCount int
@@ -70,6 +73,10 @@ type smartStatusOutput struct {
 func NewSmartStatusOutput(w io.Writer,
 	formatter formatter,
 	suppressOutput bool) status.StatusOutput {
+	return newSmartStatusOutput(w, formatter, suppressOutput, true)
+}
+
+func newSmartStatusOutput(w io.Writer, formatter formatter, suppressOutput, useActionTable bool) status.StatusOutput {
 	s := &smartStatusOutput{
 		writer:         w,
 		formatter:      formatter,
@@ -77,7 +84,7 @@ func NewSmartStatusOutput(w io.Writer,
 
 		haveBlankLine: true,
 
-		tableMode: true,
+		tableMode: useActionTable,
 
 		done:     make(chan bool),
 		sigwinch: make(chan os.Signal),
@@ -85,7 +92,7 @@ func NewSmartStatusOutput(w io.Writer,
 
 	if env, ok := os.LookupEnv(tableHeightEnVar); ok {
 		h, _ := strconv.Atoi(env)
-		s.tableMode = h > 0
+		s.tableMode = s.tableMode && h > 0
 		s.requestedTableHeight = h
 	}
 
@@ -94,24 +101,6 @@ func NewSmartStatusOutput(w io.Writer,
 		s.computeTableHeight()
 	} else {
 		s.tableMode = false
-	}
-
-	if s.tableMode {
-		// Add empty lines at the bottom of the screen to scroll back the existing history
-		// and make room for the action table.
-		// TODO: read the cursor position to see if the empty lines are necessary?
-		for i := 0; i < s.tableHeight; i++ {
-			fmt.Fprintln(w)
-		}
-
-		// Hide the cursor to prevent seeing it bouncing around
-		fmt.Fprintf(s.writer, ansi.hideCursor())
-
-		// Configure the empty action table
-		s.actionTable()
-
-		// Start a tick to update the action table periodically
-		s.startActionTableTick()
 	}
 
 	s.startSigwinch()
@@ -123,7 +112,11 @@ func (s *smartStatusOutput) Message(level status.MsgLevel, message string) {
 	if level < status.StatusLvl {
 		return
 	}
-	if isSisoMemoryStallNotice(level, message) {
+	if isConsoleStartupNotice(level, message) || isConsoleNinjaSuccessSummary(level, message) || isSisoMemoryStallNotice(level, message) {
+		return
+	}
+	if message == "Running globs..." {
+		s.startupMessage(s.formatter.message(level, message), true)
 		return
 	}
 
@@ -133,14 +126,34 @@ func (s *smartStatusOutput) Message(level status.MsgLevel, message string) {
 	defer s.lock.Unlock()
 
 	if level > status.StatusLvl {
-		s.print(str)
+		s.printAndRedraw(str)
+	} else if s.tableStarted {
+		// Status messages replace the ordinary live row. Print them as output,
+		// then restore the counts-and-elapsed row below the message.
+		s.printAndRedraw(str)
 	} else {
 		s.statusLine(str)
 	}
 }
 
 func (s *smartStatusOutput) PhaseStatus(phase status.BuildPhase, description string) {
-	s.Message(status.StatusLvl, s.formatter.phaseStatus(phase, description))
+	str := s.formatter.phaseStatus(phase, description)
+	if phase == status.SoongPhase && description == "Blueprint bootstrap and graph analysis" {
+		s.startupMessage(str, false)
+		return
+	}
+	if phase == status.KatiPhase && description == "Makefile and packaging generation" ||
+		phase == status.NinjaPhase && description == "Starting Ninja/Siso execution" {
+		s.startupMessage(str, true)
+		return
+	}
+	s.Message(status.StatusLvl, str)
+}
+
+func (s *smartStatusOutput) startupMessage(str string, trailingBlankLine bool) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.printAndRedrawWithBlankLine(str, trailingBlankLine)
 }
 
 func (s *smartStatusOutput) StartAction(action *status.Action, counts status.Counts) {
@@ -161,11 +174,17 @@ func (s *smartStatusOutput) StartAction(action *status.Action, counts status.Cou
 		startTime: startTime,
 	})
 	s.lastCounts = counts
+	// Start lazily on the first actual build action. This also covers builds
+	// that do not write a header through this status writer first.
+	s.startActionTable()
 
 	if !s.tableMode {
 		progress += str
 	}
 	s.statusLine(progress)
+	if s.tableStarted {
+		s.actionTable()
+	}
 }
 
 func (s *smartStatusOutput) FinishAction(result status.ActionResult, counts status.Counts) {
@@ -177,10 +196,13 @@ func (s *smartStatusOutput) FinishAction(result status.ActionResult, counts stat
 	output := s.formatter.result(result)
 
 	progress := s.formatter.progress(counts) + str
-	if s.tableMode && output == "" && result.Error == nil {
-		// In table mode, descriptions belong in the running-action table. Keep
-		// the live row identical to the elapsed-time redraw after a quiet finish.
+	if s.tableMode {
+		// Keep the live row identical to timer redraws. Action context belongs
+		// in the running-action list or on the diagnostic block heading.
 		progress = s.formatter.progress(counts)
+		if output != "" {
+			output = str + "\n" + output
+		}
 	}
 
 	s.lock.Lock()
@@ -199,11 +221,23 @@ func (s *smartStatusOutput) FinishAction(result status.ActionResult, counts stat
 	// Stop printing when there are failures, but don't skip actions that also have their own errors.
 	if output != "" {
 		if (!s.haveFailures && !s.suppressOutput) || result.Error != nil {
+			s.clearActionTable()
+			if s.tableStarted && !s.haveBlankLine {
+				// The completed row is transient status, not part of the
+				// diagnostic block. Remove it before advancing to output.
+				fmt.Fprint(s.writer, "\r", ansi.clearToEndOfLine())
+			}
 			s.requestLine()
 			s.print(output)
+			if s.tableStarted {
+				s.statusLine(progress)
+			}
 		} else {
 			s.postFailureActionCount++
 		}
+	}
+	if s.tableStarted {
+		s.actionTable()
 	}
 
 	if result.Error != nil {
@@ -212,7 +246,12 @@ func (s *smartStatusOutput) FinishAction(result status.ActionResult, counts stat
 }
 
 func (s *smartStatusOutput) Flush() {
-	if s.tableMode {
+	s.lock.Lock()
+	s.flushing = true
+	tableStarted := s.tableStarted
+	s.lock.Unlock()
+
+	if tableStarted {
 		// Stop the action table tick outside of the lock to avoid lock ordering issues between s.done and
 		// s.lock, the goroutine in startActionTableTick can get blocked on the lock and be unable to read
 		// from the channel.
@@ -223,6 +262,16 @@ func (s *smartStatusOutput) Flush() {
 	defer s.lock.Unlock()
 
 	s.stopSigwinch()
+	if s.tableStarted {
+		// Clear rows below the live progress cursor before advancing it or
+		// printing a final failure summary there.
+		s.clearActionTable()
+	}
+	if s.tableStarted && !s.haveBlankLine {
+		// Remove the final live progress row before handing the terminal back
+		// to the shell wrapper or prompt.
+		fmt.Fprint(s.writer, "\r", ansi.clearToEndOfLine())
+	}
 
 	if s.postFailureActionCount > 0 {
 		s.requestLine()
@@ -232,20 +281,11 @@ func (s *smartStatusOutput) Flush() {
 			s.print(fmt.Sprintf("There were %d actions that completed after the action that failed. See verbose.log.gz for their output.", s.postFailureActionCount))
 		}
 	}
-
 	s.requestLine()
 
 	s.runningActions = nil
 
-	if s.tableMode {
-		// Update the table after clearing runningActions to clear it
-		s.actionTable()
-
-		// Reset the scrolling region to the whole terminal
-		fmt.Fprintf(s.writer, ansi.resetScrollingMargins())
-		_, height, _ := termSize(s.writer)
-		// Move the cursor to the top of the now-blank, previously non-scrolling region
-		fmt.Fprintf(s.writer, ansi.setCursor(height-s.tableHeight, 1))
+	if s.tableStarted {
 		// Turn the cursor back on
 		fmt.Fprintf(s.writer, ansi.showCursor())
 	}
@@ -254,8 +294,50 @@ func (s *smartStatusOutput) Flush() {
 func (s *smartStatusOutput) Write(p []byte) (int, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	s.print(string(p))
+	if s.tableStarted {
+		s.printAndRedraw(string(p))
+	} else {
+		s.print(string(p))
+		s.startActionTable()
+	}
 	return len(p), nil
+}
+
+func (s *smartStatusOutput) printAndRedraw(str string) {
+	s.printAndRedrawWithBlankLine(str, false)
+}
+
+func (s *smartStatusOutput) printAndRedrawWithBlankLine(str string, trailingBlankLine bool) {
+	s.clearActionTable()
+	s.print(str)
+	if trailingBlankLine {
+		fmt.Fprintln(s.writer)
+	}
+	if s.tableStarted && !s.flushing {
+		s.statusLine(s.formatter.progress(s.lastCounts))
+		s.actionTable()
+	}
+}
+
+func (s *smartStatusOutput) startActionTable() {
+	if !s.tableMode || s.tableStarted || s.flushing {
+		return
+	}
+	s.tableStarted = true
+	fmt.Fprint(s.writer, ansi.hideCursor())
+	s.actionTable()
+	s.startActionTableTick()
+}
+
+func (s *smartStatusOutput) clearActionTable() {
+	if !s.tableStarted || s.tableRowsDrawn == 0 {
+		return
+	}
+	for row := 0; row < s.tableRowsDrawn; row++ {
+		fmt.Fprint(s.writer, "\n\r", ansi.clearToEndOfLine())
+	}
+	fmt.Fprint(s.writer, ansi.cursorUp(s.tableRowsDrawn), "\r")
+	s.tableRowsDrawn = 0
 }
 
 func (s *smartStatusOutput) requestLine() {
@@ -354,7 +436,7 @@ func (s *smartStatusOutput) startSigwinch() {
 		for _ = range s.sigwinch {
 			s.lock.Lock()
 			s.updateTermSize()
-			if s.tableMode {
+			if s.tableStarted {
 				s.actionTable()
 			}
 			s.lock.Unlock()
@@ -391,44 +473,27 @@ func (s *smartStatusOutput) computeTableHeight() {
 // necessary.
 func (s *smartStatusOutput) updateTermSize() {
 	if w, h, ok := termSize(s.writer); ok {
-		oldScrollingHeight := s.termHeight - s.tableHeight
-
 		s.termWidth, s.termHeight = w, h
 
 		if s.tableMode {
 			s.computeTableHeight()
-
-			scrollingHeight := s.termHeight - s.tableHeight
-
-			// If the scrolling region has changed, attempt to pan the existing text so that it is
-			// not overwritten by the table.
-			if scrollingHeight < oldScrollingHeight {
-				pan := oldScrollingHeight - scrollingHeight
-				if pan > s.tableHeight {
-					pan = s.tableHeight
-				}
-				fmt.Fprint(s.writer, ansi.panDown(pan))
-			}
 		}
 	}
 }
 
 func (s *smartStatusOutput) actionTable() {
-	scrollingHeight := s.termHeight - s.tableHeight
+	// Line feeds create the rows below progress and scroll the screen when the
+	// live row is near the bottom. Cursor-down alone is clipped at the bottom,
+	// which would make the first action row overwrite Elapsed.
 
-	// Update the scrolling region in case the height of the terminal changed
+	rows := s.tableHeight
+	if s.tableRowsDrawn > rows {
+		rows = s.tableRowsDrawn
+	}
+	for tableLine := 0; tableLine < rows; tableLine++ {
+		fmt.Fprint(s.writer, "\n\r")
 
-	fmt.Fprint(s.writer, ansi.setScrollingMargins(1, scrollingHeight))
-
-	// Write as many status lines as fit in the table
-	for tableLine := 0; tableLine < s.tableHeight; tableLine++ {
-		if tableLine >= s.tableHeight {
-			break
-		}
-		// Move the cursor to the correct line of the non-scrolling region
-		fmt.Fprint(s.writer, ansi.setCursor(scrollingHeight+1+tableLine, 1))
-
-		if tableLine < len(s.runningActions) {
+		if tableLine < s.tableHeight && tableLine < len(s.runningActions) {
 			runningAction := s.runningActions[tableLine]
 
 			seconds := int(time.Since(runningAction.startTime).Round(time.Second).Seconds())
@@ -457,8 +522,8 @@ func (s *smartStatusOutput) actionTable() {
 		fmt.Fprint(s.writer, ansi.clearToEndOfLine())
 	}
 
-	// Move the cursor back to the last line of the scrolling region
-	fmt.Fprint(s.writer, ansi.setCursor(scrollingHeight, 1))
+	fmt.Fprint(s.writer, ansi.cursorUp(rows), "\r")
+	s.tableRowsDrawn = s.tableHeight
 }
 
 var ansi = ansiImpl{}
@@ -469,19 +534,8 @@ func (ansiImpl) clearToEndOfLine() string {
 	return "\x1b[K"
 }
 
-func (ansiImpl) setCursor(row, column int) string {
-	// Direct cursor address
-	return fmt.Sprintf("\x1b[%d;%dH", row, column)
-}
-
-func (ansiImpl) setScrollingMargins(top, bottom int) string {
-	// Set Top and Bottom Margins DECSTBM
-	return fmt.Sprintf("\x1b[%d;%dr", top, bottom)
-}
-
-func (ansiImpl) resetScrollingMargins() string {
-	// Set Top and Bottom Margins DECSTBM
-	return fmt.Sprintf("\x1b[r")
+func (ansiImpl) cursorUp(rows int) string {
+	return fmt.Sprintf("\x1b[%dA", rows)
 }
 
 func (ansiImpl) redColor(trueColor bool) string {
@@ -526,12 +580,4 @@ func (ansiImpl) showCursor() string {
 
 func (ansiImpl) hideCursor() string {
 	return "\x1b[?25l"
-}
-
-func (ansiImpl) panDown(lines int) string {
-	return fmt.Sprintf("\x1b[%dS", lines)
-}
-
-func (ansiImpl) panUp(lines int) string {
-	return fmt.Sprintf("\x1b[%dT", lines)
 }

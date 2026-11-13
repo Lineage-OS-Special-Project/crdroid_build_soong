@@ -215,7 +215,7 @@ func installClean(ctx Context, config Config) {
 	if ctx.TerminalColorMode != "" {
 		message += "\x1b[0m"
 	}
-	fmt.Fprint(ctx.Writer, message+"\n\n")
+	ctx.PrintFinal("\n" + message + "\n\n")
 }
 
 // Since products and build variants (unfortunately) shared the same

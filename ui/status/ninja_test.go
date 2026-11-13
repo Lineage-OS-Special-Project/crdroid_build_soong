@@ -18,10 +18,15 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/encoding/protowire"
+	"google.golang.org/protobuf/proto"
+
 	"android/soong/ui/logger"
+	"android/soong/ui/status/ninja_frontend"
 )
 
 // Tests that closing the ninja reader when nothing has opened the other end of the fifo is fast.
@@ -45,6 +50,84 @@ func TestNinjaReader_Close(t *testing.T) {
 
 	if g, w := time.Since(start), NINJA_READER_CLOSE_TIMEOUT; g >= w {
 		t.Errorf("nr.Close timed out, %s > %s", g, w)
+	}
+}
+
+type ninjaMessageCapture struct {
+	messages []capturedNinjaMessage
+}
+
+type capturedNinjaMessage struct {
+	level MsgLevel
+	text  string
+}
+
+func (*ninjaMessageCapture) SetTotalActions(int)        {}
+func (*ninjaMessageCapture) SetEstimatedTime(time.Time) {}
+func (*ninjaMessageCapture) StartAction(*Action)        {}
+func (*ninjaMessageCapture) FinishAction(ActionResult)  {}
+func (c *ninjaMessageCapture) Verbose(text string)      { c.add(VerboseLvl, text) }
+func (c *ninjaMessageCapture) Status(text string)       { c.add(StatusLvl, text) }
+func (c *ninjaMessageCapture) Print(text string)        { c.add(PrintLvl, text) }
+func (c *ninjaMessageCapture) Error(text string)        { c.add(ErrorLvl, text) }
+func (c *ninjaMessageCapture) add(level MsgLevel, text string) {
+	c.messages = append(c.messages, capturedNinjaMessage{level, text})
+}
+func (*ninjaMessageCapture) Finish() {}
+
+func TestNinjaReaderSummaryAndBareMarkerRouting(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		steps string
+	}{
+		{name: "zero steps", steps: "0"},
+		{name: "one step", steps: "1"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			fifo := filepath.Join(dir, "fifo")
+			capture := &ninjaMessageCapture{}
+			sigNumFunc := func() os.Signal { return nil }
+			nr := NewNinjaReader(logger.New(ioutil.Discard), capture, fifo, sigNumFunc)
+			f, err := os.OpenFile(fifo, os.O_WRONLY, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			write := func(level ninja_frontend.Status_Message_Level, message string) {
+				t.Helper()
+				payload, err := proto.Marshal(&ninja_frontend.Status{Message: &ninja_frontend.Status_Message{
+					Level: &level, Message: &message,
+				}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				frame := protowire.AppendVarint(nil, uint64(len(payload)))
+				frame = append(frame, payload...)
+				if _, err := f.Write(frame); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write(ninja_frontend.Status_Message_INFO, " 4m51.01s Build Succeeded: "+test.steps+" steps - 0.00/s")
+			write(ninja_frontend.Status_Message_INFO, "Build Succeeded")
+			write(ninja_frontend.Status_Message_INFO, "module status mentions Build Succeeded as text")
+			write(ninja_frontend.Status_Message_WARNING, "preserve warning")
+			write(ninja_frontend.Status_Message_ERROR, "preserve failure")
+			if err := f.Close(); err != nil {
+				t.Fatal(err)
+			}
+			nr.Close()
+
+			want := []capturedNinjaMessage{
+				{StatusLvl, "ninja:  4m51.01s Build Succeeded: " + test.steps + " steps - 0.00/s"},
+				{VerboseLvl, "ninja: Build Succeeded"},
+				{StatusLvl, "ninja: module status mentions Build Succeeded as text"},
+				{PrintLvl, "warning: ninja: preserve warning"},
+				{ErrorLvl, "ninja: preserve failure"},
+			}
+			if !reflect.DeepEqual(capture.messages, want) {
+				t.Fatalf("messages = %#v, want %#v", capture.messages, want)
+			}
+		})
 	}
 }
 

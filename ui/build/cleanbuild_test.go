@@ -55,10 +55,10 @@ func TestInstallCleanOutput(t *testing.T) {
 
 	installClean(ctx, config)
 
-	got := output.String()
-	want := "Install clean completed: data, logs, images and staging removed.\n\n"
+	got := strings.Join(ctx.FinalStdout, "")
+	want := "\nInstall clean completed: data, logs, images and staging removed.\n\n"
 	if got != want {
-		t.Fatalf("installClean output = %q, want %q", got, want)
+		t.Fatalf("installClean final output = %q, want %q", got, want)
 	}
 	for _, path := range []string{dataFile, logFile, imageFile, stagingFile} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -78,10 +78,10 @@ func TestInstallCleanOutputColorResetBeforeBlankLine(t *testing.T) {
 
 	installClean(ctx, config)
 
-	got := output.String()
-	want := "\x1b[36mInstall clean completed: data, logs, images and staging removed.\x1b[0m\n\n"
+	got := strings.Join(ctx.FinalStdout, "")
+	want := "\n\x1b[36mInstall clean completed: data, logs, images and staging removed.\x1b[0m\n\n"
 	if got != want {
-		t.Fatalf("installClean colored output = %q, want %q", got, want)
+		t.Fatalf("installClean final colored output = %q, want %q", got, want)
 	}
 }
 
