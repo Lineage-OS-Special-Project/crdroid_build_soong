@@ -44,6 +44,9 @@ func NewSimpleStatusOutput(w io.Writer, formatter formatter, keepANSI bool,
 
 func (s *simpleStatusOutput) Message(level status.MsgLevel, message string) {
 	if level >= status.StatusLvl {
+		if isSisoMemoryStallNotice(level, message) {
+			return
+		}
 		output := s.formatter.message(level, message)
 		if !s.keepANSI {
 			output = string(stripAnsiEscapes([]byte(output)))

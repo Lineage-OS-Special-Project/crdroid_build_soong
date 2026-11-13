@@ -123,6 +123,9 @@ func (s *smartStatusOutput) Message(level status.MsgLevel, message string) {
 	if level < status.StatusLvl {
 		return
 	}
+	if isSisoMemoryStallNotice(level, message) {
+		return
+	}
 
 	str := s.formatter.message(level, message)
 
