@@ -46,7 +46,7 @@ func TestPhaseStatusColorPolicy(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("smart status does not contain colored phase marker %q: %q", want, got)
 		}
-		if strings.Count(got, "\x1b[34m") != 1 || strings.Count(got, "\x1b[1m") != 2 {
+		if strings.Count(got, "\x1b[34m") != 1 || strings.Count(got, "\x1b[1m") != 1 {
 			t.Fatalf("expected one blue-violet and one bold sequence, got %q", got)
 		}
 		if plain := string(stripAnsiEscapes([]byte(got))); !strings.Contains(plain, "[Soong] "+description) {
@@ -82,6 +82,40 @@ func TestPhaseStatusColorPolicy(t *testing.T) {
 			t.Fatalf("redirected output = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestSmartStartupLinesAndSeparatorsSurviveFirstProgress(t *testing.T) {
+	setTestColorEnv(t, "")
+	term := &fakeSmartTerminal{termWidth: 100, termHeight: 20}
+	stat := NewStatusOutput(term, lospStatusFormat, false, false, false, false, false)
+	stat.(interface {
+		PhaseStatus(status.BuildPhase, string)
+	}).PhaseStatus(status.SoongPhase, "Blueprint bootstrap and graph analysis")
+	stat.Message(status.StatusLvl, "Running globs...")
+	stat.(interface {
+		PhaseStatus(status.BuildPhase, string)
+	}).PhaseStatus(status.KatiPhase, "Makefile and packaging generation")
+	stat.(interface {
+		PhaseStatus(status.BuildPhase, string)
+	}).PhaseStatus(status.NinjaPhase, "Starting Ninja/Siso execution")
+	stat.StartAction(&status.Action{Description: "first Ninja action"}, status.Counts{TotalActions: 1, RunningActions: 1})
+
+	got := string(stripAnsiEscapes(append([]byte(nil), term.Bytes()...)))
+	startup := "[Soong] Blueprint bootstrap and graph analysis\n" +
+		"Running globs...\n\n" +
+		"[Kati] Makefile and packaging generation\n\n" +
+		"[Build] Starting Ninja/Siso execution\n\n"
+	if !strings.Contains(got, startup) {
+		t.Fatalf("startup headings or their single blank-line separators changed: %q", got)
+	}
+	if progress := strings.Index(got, "[0/1 ("); progress < strings.Index(got, startup)+len(startup) {
+		t.Fatalf("first progress redraw preceded startup separators: %q", got)
+	}
+	if strings.Count(got, "[Soong] Blueprint bootstrap and graph analysis") != 1 ||
+		strings.Count(got, "Running globs...") != 1 {
+		t.Fatalf("startup lines were replaced or repeated: %q", got)
+	}
+	stat.Flush()
 }
 
 func TestLOSPColorPolicy(t *testing.T) {
@@ -181,6 +215,26 @@ func TestSisoMemoryStallNoticeIsHiddenOnlyFromConsole(t *testing.T) {
 		"E1113 07:52:09.465346       1 trace_sys_linux.go:89] memory stall 503.128ms/s",
 		"E1201 23:59:59.999999      42 trace_sys_linux.go:123] memory stall 0.25ms/s",
 	}
+	startupNotices := []string{
+		" \t\r\nninja: \r\n",
+		" \r\nninja: \x1b[33mSISO_EXPERIMENTS=fallback-on-exec-error enabled\nSISO_EXPERIMENTS=ignore-missing-out-in-depfile enabled\x1b[0m \t\r\n",
+		"\tninja: SISO_EXPERIMENTS=oom-score-adj enabled \r\n",
+		"\tninja: ignore missing out error in depfile \r\n",
+		" \r\nNo need to regenerate ninja file \t\r\n",
+	}
+	successSummaries := []string{
+		"ninja:  5m21.91s Build Succeeded: 1 steps - 0.00/s",
+		"ninja: 0.62s Build Succeeded: 0 steps - 0.00/s",
+	}
+	preservedMessages := []string{
+		"Build Succeeded",
+		"ninja: Build Succeeded",
+		"Build Succeeded for module metadata",
+		"module status: SISO_EXPERIMENTS config is being inspected",
+		"ninja: SISO_EXPERIMENTS support is mentioned in this warning",
+		"ninja: SISO_EXPERIMENTS=oom-score-adj enabled for this target",
+		"ninja: SISO_EXPERIMENTS=oom-score-adj enabled\nSISO_EXPERIMENTS detail for this target",
+	}
 	for _, smart := range []bool{false, true} {
 		name := "simple"
 		if smart {
@@ -208,10 +262,26 @@ func TestSisoMemoryStallNoticeIsHiddenOnlyFromConsole(t *testing.T) {
 			buildStatus.AddOutput(consoleOutput)
 			buildStatus.AddOutput(status.NewVerboseLog(logger.New(io.Discard), logPath))
 			tool := buildStatus.StartTool()
-			for _, notice := range notices {
-				tool.Print(notice)
+			for _, phase := range []status.BuildPhase{status.SoongPhase, status.NinjaPhase} {
+				buildStatus.StatusPhase(phase, "test Siso startup")
+				for _, notice := range notices {
+					tool.Print(notice)
+				}
+				for _, notice := range startupNotices {
+					tool.Status(notice)
+				}
+				for _, summary := range successSummaries {
+					tool.Status(summary)
+					tool.Print(summary)
+				}
+				for _, message := range preservedMessages {
+					tool.Status(message)
+					tool.Print(message)
+				}
 			}
+			tool.Status("ninja: build finished in 1.23s")
 			tool.Print("warning: keep this unrelated warning visible")
+			tool.Print("FAILED: keep the failed command visible")
 			tool.Error("error: keep this unrelated error visible")
 			buildStatus.Finish()
 
@@ -221,7 +291,17 @@ func TestSisoMemoryStallNoticeIsHiddenOnlyFromConsole(t *testing.T) {
 					t.Errorf("console contains filtered Siso notice %q: %q", notice, consoleText)
 				}
 			}
-			for _, want := range []string{"keep this unrelated warning visible", "keep this unrelated error visible"} {
+			for _, notice := range startupNotices {
+				if strings.Contains(consoleText, notice) {
+					t.Errorf("console contains filtered Siso startup notice %q: %q", notice, consoleText)
+				}
+			}
+			for _, summary := range successSummaries {
+				if strings.Contains(consoleText, summary) {
+					t.Errorf("console contains successful Ninja summary %q: %q", summary, consoleText)
+				}
+			}
+			for _, want := range append(preservedMessages, "ninja: build finished in 1.23s", "keep this unrelated warning visible", "keep the failed command visible", "keep this unrelated error visible") {
 				if !strings.Contains(consoleText, want) {
 					t.Errorf("console omitted %q: %q", want, consoleText)
 				}
@@ -256,8 +336,88 @@ func TestSisoMemoryStallNoticeIsHiddenOnlyFromConsole(t *testing.T) {
 					t.Errorf("verbose build log omitted notice %q: %q", notice, logText)
 				}
 			}
+			for _, notice := range startupNotices {
+				if !strings.Contains(logText, notice) {
+					t.Errorf("verbose build log omitted startup notice %q: %q", notice, logText)
+				}
+			}
+			for _, summary := range successSummaries {
+				if !strings.Contains(logText, summary) {
+					t.Errorf("verbose build log omitted success summary %q: %q", summary, logText)
+				}
+			}
+			for _, message := range preservedMessages {
+				if !strings.Contains(logText, message) {
+					t.Errorf("verbose build log omitted unrelated message %q: %q", message, logText)
+				}
+			}
 		})
 	}
+}
+
+func TestNinjaSuccessSummaryFilterLeavesErrorsVisible(t *testing.T) {
+	message := "ninja: 5m21.91s Build Succeeded: 1 steps - 0.00/s"
+	for _, level := range []status.MsgLevel{status.VerboseLvl, status.ErrorLvl} {
+		if isConsoleNinjaSuccessSummary(level, message) {
+			t.Errorf("summary filter matched level %v", level)
+		}
+	}
+	for _, unrelated := range []string{"Build Succeeded", "ninja: Build Succeeded", "module says Build Succeeded"} {
+		if isConsoleNinjaSuccessSummary(status.StatusLvl, unrelated) {
+			t.Errorf("summary filter matched unrelated message %q", unrelated)
+		}
+	}
+	if isConsoleStartupNotice(status.StatusLvl, "module status mentions SISO_EXPERIMENTS as configuration") {
+		t.Fatal("startup filter matched unrelated SISO_EXPERIMENTS mention")
+	}
+}
+
+func TestStatusOutputDefersActionTableUntilAfterInitialOutput(t *testing.T) {
+	unsetTestEnv(t, "NO_COLOR")
+	unsetTestEnv(t, "COLORTERM")
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv(tableHeightEnVar, "5")
+
+	t.Run("clean-only has no reserved rows", func(t *testing.T) {
+		term := &fakeSmartTerminal{termWidth: 100, termHeight: 20}
+		stat := NewStatusOutputWithoutActionTable(term, "", false, false, false, false, false)
+		if got := term.String(); strings.Count(got, "\n") != 0 {
+			t.Fatalf("clean-only startup emitted reserved rows: %q", got)
+		}
+		stat.(interface {
+			PhaseStatus(status.BuildPhase, string)
+		}).PhaseStatus(status.SoongPhase, "installclean")
+		stat.Flush()
+		if got := strings.Count(term.String(), "\n"); got != 1 {
+			t.Fatalf("clean-only status output has %d newlines, want one final line break: %q", got, term.String())
+		}
+	})
+
+	t.Run("normal build writes initial output before table setup", func(t *testing.T) {
+		term := &fakeSmartTerminal{termWidth: 100, termHeight: 20}
+		stat := NewStatusOutput(term, "", false, false, false, false, false)
+		if got := term.String(); got != "" {
+			t.Fatalf("normal startup emitted output before the build header: %q", got)
+		}
+		fmt.Fprint(stat, "LOSP\nTarget  lineage_blazer\nRelease  17.0\n\n")
+		initial := term.String()
+		control := strings.Index(initial, "\x1b[")
+		moveUp := strings.Index(initial, "\x1b[5A")
+		if control < 0 || !strings.Contains(initial[:control], "Release  17.0") ||
+			moveUp < 0 || strings.Count(initial, "\n") < 4 {
+			t.Fatalf("initial header was disturbed by table setup: %q", initial)
+		}
+		stat.StartAction(&status.Action{Description: "compile module"}, status.Counts{TotalActions: 1, RunningActions: 1})
+		time.Sleep(1100 * time.Millisecond)
+		stat.(*smartStatusOutput).lock.Lock()
+		got := term.String()
+		stat.(*smartStatusOutput).lock.Unlock()
+		if !strings.Contains(got, "\x1b[5A") || strings.Contains(got, "\x1b[1;15r") ||
+			!strings.Contains(got, "compile module") {
+			t.Fatalf("normal build did not start the action table: %q", got)
+		}
+		stat.Flush()
+	})
 }
 
 func TestLOSPProgressFormat(t *testing.T) {
@@ -344,6 +504,14 @@ func TestSmartActionEventsKeepLiveRowCountsOnly(t *testing.T) {
 
 func smartLiveStatusRow(output string) string {
 	plain := string(stripAnsiEscapes([]byte(output)))
+	if elapsed := strings.LastIndex(plain, "Elapsed:"); elapsed >= 0 {
+		start := strings.LastIndex(plain[:elapsed], "\r") + 1
+		end := len(plain)
+		if next := strings.IndexAny(plain[elapsed:], "\r\n"); next >= 0 {
+			end = elapsed + next
+		}
+		return strings.TrimSpace(plain[start:end])
+	}
 	if i := strings.LastIndex(plain, "\r"); i >= 0 {
 		return strings.TrimSpace(plain[i+1:])
 	}
@@ -367,8 +535,11 @@ func TestSmartProgressAndPhasePresentation(t *testing.T) {
 			t.Fatalf("smart fixture missing %q in %q", want, plain)
 		}
 	}
-	if strings.Contains(plain, "compile module") {
-		t.Fatalf("quietly completed action description appeared on live row: %q", plain)
+	if strings.Contains(smartLiveStatusRow(got), "compile module") {
+		t.Fatalf("quietly completed action description appeared on live row: %q", got)
+	}
+	if !strings.Contains(plain, "[Soong] Blueprint bootstrap and graph analysis\n") {
+		t.Fatalf("Soong startup phase was not printed as a persistent line: %q", got)
 	}
 	for _, sgr := range []string{"38;2;129;143;232m", "38;2;16;200;200m", "38;2;201;150;50m", "\\x1b[1m"} {
 		sequence := sgr
@@ -386,19 +557,24 @@ func TestSmartStatusTableRefreshesProgressAndKeepsDescriptionInTable(t *testing.
 	t.Setenv(tableHeightEnVar, "1")
 	term := &fakeSmartTerminal{termWidth: 58, termHeight: 4}
 	stat := NewStatusOutput(term, lospStatusFormat, false, false, false, false, false).(*smartStatusOutput)
+	fmt.Fprintln(stat, "build header")
 	action := &status.Action{Description: "a long-running action description"}
 	stat.StartAction(action, status.Counts{TotalActions: 10, RunningActions: 1})
 
+	stat.lock.Lock()
 	initial := string(stripAnsiEscapes(append([]byte(nil), term.Bytes()...)))
-	if strings.Contains(initial, action.Description) {
-		t.Fatalf("active description duplicated on main line: %q", initial)
+	stat.lock.Unlock()
+	if strings.Contains(smartLiveStatusRow(initial), action.Description) {
+		t.Fatalf("active description duplicated on live progress row: %q", initial)
 	}
 
 	time.Sleep(1100 * time.Millisecond)
+	stat.lock.Lock()
 	rawAfterTick := term.String()
+	stat.lock.Unlock()
 	afterTick := string(stripAnsiEscapes(append([]byte(nil), rawAfterTick...)))
-	if strings.Count(afterTick, action.Description) != 1 {
-		t.Fatalf("description should appear once in the table, output: %q", afterTick)
+	if !strings.Contains(afterTick, action.Description) {
+		t.Fatalf("description missing from the refreshed table: %q", afterTick)
 	}
 	if strings.Count(afterTick, "Elapsed:") < 2 {
 		t.Fatalf("timer tick did not redraw overall progress: %q", afterTick)
@@ -422,6 +598,52 @@ func TestSmartStatusTableRefreshesProgressAndKeepsDescriptionInTable(t *testing.
 	}
 	if !strings.Contains(rawAfterTick, "\x1b[K") {
 		t.Fatal("redraw did not clear the remainder of its rows")
+	}
+
+	fmt.Fprintln(stat, "late output line")
+	stat.Message(status.StatusLvl, "ninja: INFO checkpoint")
+	stat.lock.Lock()
+	afterMessages := term.String()
+	stat.lock.Unlock()
+	if !strings.Contains(afterMessages, "late output line") || !strings.Contains(afterMessages, "ninja: INFO checkpoint") {
+		t.Fatalf("later output was lost: %q", afterMessages)
+	}
+	if row := smartLiveStatusRow(afterMessages); !strings.Contains(row, "Elapsed:") {
+		t.Fatalf("live progress row lost Elapsed after later writes: %q", row)
+	}
+	if !strings.Contains(afterMessages, action.Description) {
+		t.Fatalf("action list was not restored after later writes: %q", afterMessages)
+	}
+	var elapsedAfterMessages float64
+	if _, err := fmt.Sscanf(strings.Split(smartLiveStatusRow(afterMessages), "Elapsed: ")[1], "%f", &elapsedAfterMessages); err != nil {
+		t.Fatalf("parse elapsed time after later writes: %v", err)
+	}
+	time.Sleep(1100 * time.Millisecond)
+	stat.lock.Lock()
+	afterNextTick := term.String()
+	stat.lock.Unlock()
+	if row := smartLiveStatusRow(afterNextTick); !strings.Contains(row, "Elapsed:") {
+		t.Fatalf("timer redraw lost Elapsed after later writes: %q", row)
+	}
+	var elapsedAfterNextTick float64
+	if _, err := fmt.Sscanf(strings.Split(smartLiveStatusRow(afterNextTick), "Elapsed: ")[1], "%f", &elapsedAfterNextTick); err != nil {
+		t.Fatalf("parse elapsed time after next timer tick: %v", err)
+	}
+	if elapsedAfterNextTick <= elapsedAfterMessages {
+		t.Fatalf("elapsed time stopped after later writes: before %.3f after %.3f", elapsedAfterMessages, elapsedAfterNextTick)
+	}
+
+	diagnosticAction := &status.Action{Description: "diagnostic action"}
+	stat.StartAction(diagnosticAction, status.Counts{TotalActions: 10, StartedActions: 2, RunningActions: 2})
+	diagnosticCounts := status.Counts{TotalActions: 10, StartedActions: 2, FinishedActions: 1, RunningActions: 1}
+	stat.FinishAction(status.ActionResult{Action: diagnosticAction, Output: "stderr:\nwarning: wrapped diagnostic\nstdout:\npackage output\n"}, diagnosticCounts)
+	afterDiagnostic := term.String()
+	progress := smartLiveStatusRow(afterDiagnostic)
+	if !strings.HasPrefix(progress, "[1/10 ( 10%) Elapsed: ") || strings.Contains(progress, diagnosticAction.Description) {
+		t.Fatalf("diagnostic finish left action text on live row: %q", progress)
+	}
+	if !strings.Contains(afterDiagnostic, "diagnostic action\nstderr:") || !strings.Contains(afterDiagnostic, action.Description) {
+		t.Fatalf("diagnostic context or remaining action row missing: %q", afterDiagnostic)
 	}
 
 	stat.Flush()

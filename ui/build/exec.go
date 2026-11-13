@@ -214,7 +214,12 @@ func (c *Cmd) RunAndStreamOrFatal() {
 		// Attempt to read whole lines, but write partial lines that are too long to fit in the buffer or hit EOF
 		line, err := buf.ReadString('\n')
 		if line != "" {
-			st.Print(strings.TrimSuffix(line, "\n"))
+			message := strings.TrimSuffix(line, "\n")
+			if c.isNinjaSuccessMarker(message) {
+				st.Verbose(message)
+			} else {
+				st.Print(message)
+			}
 		} else if err == io.EOF {
 			break
 		} else if err != nil {
@@ -225,4 +230,9 @@ func (c *Cmd) RunAndStreamOrFatal() {
 	err = c.Wait()
 	st.Finish()
 	c.reportError(err)
+}
+
+func (c *Cmd) isNinjaSuccessMarker(message string) bool {
+	return strings.TrimSpace(message) == "Build Succeeded" &&
+		(c.name == "soong bootstrap" || c.name == "ninja")
 }

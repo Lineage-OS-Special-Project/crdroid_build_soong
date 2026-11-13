@@ -274,7 +274,11 @@ func (n *NinjaReader) run() {
 			message := "ninja: " + msg.Message.GetMessage()
 			switch msg.Message.GetLevel() {
 			case ninja_frontend.Status_Message_INFO:
-				n.status.Status(message)
+				if isNinjaSuccessMarker(message) {
+					n.status.Verbose(message)
+				} else {
+					n.status.Status(message)
+				}
 			case ninja_frontend.Status_Message_WARNING:
 				n.status.Print("warning: " + message)
 			case ninja_frontend.Status_Message_ERROR:
@@ -289,6 +293,16 @@ func (n *NinjaReader) run() {
 			n.status.Finish()
 		}
 	}
+}
+
+func isNinjaSuccessMarker(message string) bool {
+	return strings.TrimSpace(message) == "ninja: Build Succeeded"
+}
+
+var sisoSuccessSummary = regexp.MustCompile(`^ninja:[[:space:]]+[^[:space:]]+ Build Succeeded: [0-9]+ steps - [^[:space:]]+$`)
+
+func IsSisoSuccessSummary(message string) bool {
+	return sisoSuccessSummary.MatchString(message)
 }
 
 // Returns true if any command run by ninja had any output to stdout/stderr. Be sure to only

@@ -147,7 +147,11 @@ func main() {
 
 	// Create a terminal output that mimics Ninja's.
 	forceANSI := build.OsEnvironment().IsEnvTrue("SOONG_UI_ANSI_OUTPUT")
-	output := terminal.NewStatusOutput(c.stdio().Stdout(), os.Getenv("NINJA_STATUS"), c.simpleOutput,
+	newStatusOutput := terminal.NewStatusOutput
+	if build.OsEnvironment().IsEnvTrue("LOSP_CLEAN_ONLY_INVOCATION") {
+		newStatusOutput = terminal.NewStatusOutputWithoutActionTable
+	}
+	output := newStatusOutput(c.stdio().Stdout(), os.Getenv("NINJA_STATUS"), c.simpleOutput,
 		build.OsEnvironment().IsEnvTrue("ANDROID_QUIET_BUILD"),
 		forceANSI,
 		build.OsEnvironment().IsEnvTrue("SOONG_UI_SKIP_ACTION_PROGRESS"),
