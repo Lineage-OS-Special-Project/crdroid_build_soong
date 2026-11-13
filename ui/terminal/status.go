@@ -17,9 +17,16 @@ package terminal
 import (
 	"io"
 	"os"
+	"regexp"
 
 	"android/soong/ui/status"
 )
+
+var sisoMemoryStallNotice = regexp.MustCompile(`^E[0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+[[:space:]]+[0-9]+ trace_sys_linux\.go:[0-9]+\] memory stall [0-9]+(\.[0-9]+)?ms/s\r?$`)
+
+func isSisoMemoryStallNotice(level status.MsgLevel, message string) bool {
+	return level == status.PrintLvl && sisoMemoryStallNotice.MatchString(message)
+}
 
 // NewStatusOutput returns a StatusOutput that represents the
 // current build status similarly to Ninja's built-in terminal

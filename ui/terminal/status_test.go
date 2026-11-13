@@ -16,14 +16,17 @@ package terminal
 
 import (
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
+	"android/soong/ui/logger"
 	"android/soong/ui/status"
 )
 
@@ -168,6 +171,90 @@ func TestCleanStatusColorFor(t *testing.T) {
 			}
 			if got := CleanStatusColorFor(writer, tt.forceSimple, tt.forceANSI); got != tt.want {
 				t.Fatalf("CleanStatusColorFor() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSisoMemoryStallNoticeIsHiddenOnlyFromConsole(t *testing.T) {
+	notices := []string{
+		"E1113 07:52:09.465346       1 trace_sys_linux.go:89] memory stall 503.128ms/s",
+		"E1201 23:59:59.999999      42 trace_sys_linux.go:123] memory stall 0.25ms/s",
+	}
+	for _, smart := range []bool{false, true} {
+		name := "simple"
+		if smart {
+			name = "smart"
+		}
+		t.Run(name, func(t *testing.T) {
+			unsetTestEnv(t, "NO_COLOR")
+			unsetTestEnv(t, "COLORTERM")
+			t.Setenv("TERM", "xterm-256color")
+			t.Setenv(tableHeightEnVar, "1")
+
+			var console *bytes.Buffer
+			var consoleOutput status.StatusOutput
+			if smart {
+				term := &fakeSmartTerminal{termWidth: 100, termHeight: 8}
+				consoleOutput = NewStatusOutput(term, "", false, false, false, false, false)
+				console = &term.Buffer
+			} else {
+				console = &bytes.Buffer{}
+				consoleOutput = NewStatusOutput(console, "", true, false, false, false, false)
+			}
+
+			logPath := filepath.Join(t.TempDir(), "verbose.log")
+			buildStatus := &status.Status{}
+			buildStatus.AddOutput(consoleOutput)
+			buildStatus.AddOutput(status.NewVerboseLog(logger.New(io.Discard), logPath))
+			tool := buildStatus.StartTool()
+			for _, notice := range notices {
+				tool.Print(notice)
+			}
+			tool.Print("warning: keep this unrelated warning visible")
+			tool.Error("error: keep this unrelated error visible")
+			buildStatus.Finish()
+
+			consoleText := string(stripAnsiEscapes(append([]byte(nil), console.Bytes()...)))
+			for _, notice := range notices {
+				if strings.Contains(consoleText, notice) {
+					t.Errorf("console contains filtered Siso notice %q: %q", notice, consoleText)
+				}
+			}
+			for _, want := range []string{"keep this unrelated warning visible", "keep this unrelated error visible"} {
+				if !strings.Contains(consoleText, want) {
+					t.Errorf("console omitted %q: %q", want, consoleText)
+				}
+			}
+
+			var logText string
+			deadline := time.Now().Add(time.Second)
+			for {
+				file, err := os.Open(logPath + ".gz")
+				if err != nil {
+					t.Fatal(err)
+				}
+				reader, err := gzip.NewReader(file)
+				if err == nil {
+					logged, readErr := io.ReadAll(reader)
+					_ = reader.Close()
+					_ = file.Close()
+					if readErr == nil {
+						logText = string(logged)
+						break
+					}
+				} else {
+					_ = file.Close()
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("verbose log did not finish writing its gzip stream")
+				}
+				time.Sleep(time.Millisecond)
+			}
+			for _, notice := range notices {
+				if !strings.Contains(logText, notice) {
+					t.Errorf("verbose build log omitted notice %q: %q", notice, logText)
+				}
 			}
 		})
 	}
