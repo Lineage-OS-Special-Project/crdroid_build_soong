@@ -171,9 +171,14 @@ func (s *smartStatusOutput) FinishAction(result status.ActionResult, counts stat
 		str = result.Command
 	}
 
-	progress := s.formatter.progress(counts) + str
-
 	output := s.formatter.result(result)
+
+	progress := s.formatter.progress(counts) + str
+	if s.tableMode && output == "" && result.Error == nil {
+		// In table mode, descriptions belong in the running-action table. Keep
+		// the live row identical to the elapsed-time redraw after a quiet finish.
+		progress = s.formatter.progress(counts)
+	}
 
 	s.lock.Lock()
 	defer s.lock.Unlock()

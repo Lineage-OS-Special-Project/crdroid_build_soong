@@ -221,6 +221,48 @@ func TestLOSPStatusThroughBuildEntryFormat(t *testing.T) {
 	}
 }
 
+func TestSmartActionEventsKeepLiveRowCountsOnly(t *testing.T) {
+	setTestColorEnv(t, "")
+	t.Setenv(tableHeightEnVar, "1")
+	term := &fakeSmartTerminal{termWidth: 80, termHeight: 8}
+	stat := NewStatusOutput(term, lospStatusFormat, false, false, false, false, false).(*smartStatusOutput)
+	action := &status.Action{Description: "compile module description"}
+
+	startCounts := status.Counts{TotalActions: 10, RunningActions: 1}
+	stat.StartAction(action, startCounts)
+	startRow := smartLiveStatusRow(term.String())
+	startWant := strings.TrimSpace(string(stripAnsiEscapes([]byte(stat.formatter.progress(startCounts)))))
+	if startRow != startWant {
+		t.Fatalf("live row after StartAction = %q, want counts and elapsed %q", startRow, startWant)
+	}
+	if strings.Contains(startRow, action.Description) {
+		t.Fatalf("StartAction description appeared in live row: %q", startRow)
+	}
+	if len(stat.runningActions) != 1 || stat.runningActions[0].action.Description != action.Description {
+		t.Fatalf("running-action table lost description: %+v", stat.runningActions)
+	}
+
+	finishCounts := status.Counts{FinishedActions: 1, TotalActions: 10}
+	stat.FinishAction(status.ActionResult{Action: action}, finishCounts)
+	finishRow := smartLiveStatusRow(term.String())
+	finishWant := strings.TrimSpace(string(stripAnsiEscapes([]byte(stat.formatter.progress(finishCounts)))))
+	if finishRow != finishWant {
+		t.Fatalf("live row after quiet FinishAction = %q, want counts and elapsed %q", finishRow, finishWant)
+	}
+	if strings.Contains(finishRow, action.Description) {
+		t.Fatalf("FinishAction description appeared in live row: %q", finishRow)
+	}
+	stat.Flush()
+}
+
+func smartLiveStatusRow(output string) string {
+	plain := string(stripAnsiEscapes([]byte(output)))
+	if i := strings.LastIndex(plain, "\r"); i >= 0 {
+		return strings.TrimSpace(plain[i+1:])
+	}
+	return strings.TrimSpace(plain)
+}
+
 func TestSmartProgressAndPhasePresentation(t *testing.T) {
 	setTestColorEnv(t, "truecolor")
 	term := &fakeSmartTerminal{termWidth: 200, termHeight: 3}
@@ -233,10 +275,13 @@ func TestSmartProgressAndPhasePresentation(t *testing.T) {
 	stat.Flush()
 	got := term.String()
 	plain := string(stripAnsiEscapes([]byte(got)))
-	for _, want := range []string{"[Soong] Blueprint bootstrap and graph analysis", "3/10 ( 30%) Elapsed:", "compile module"} {
+	for _, want := range []string{"[Soong] Blueprint bootstrap and graph analysis", "3/10 ( 30%) Elapsed:"} {
 		if !strings.Contains(plain, want) {
 			t.Fatalf("smart fixture missing %q in %q", want, plain)
 		}
+	}
+	if strings.Contains(plain, "compile module") {
+		t.Fatalf("quietly completed action description appeared on live row: %q", plain)
 	}
 	for _, sgr := range []string{"38;2;129;143;232m", "38;2;16;200;200m", "38;2;201;150;50m", "\\x1b[1m"} {
 		sequence := sgr
